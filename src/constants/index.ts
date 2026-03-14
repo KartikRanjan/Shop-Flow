@@ -6,6 +6,9 @@
  * consistency in responses, error handling, and pagination logic.
  */
 
+export const USER_ROLES = ['user', 'admin', 'seller'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export const MAX_PAGE_SIZE = 100;
 export const DEFAULT_PAGE_SIZE = 10;
 export const DEFAULT_PAGE = 1;
