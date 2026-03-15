@@ -412,10 +412,6 @@ LOGOUT ALL DEVICES
 *   `zod`
 *   `express-rate-limit` (already present)
 
-**Removed dependencies (Passport.js):**
-*   ~~`passport`~~, ~~`passport-jwt`~~
-*   ~~`@types/passport`~~, ~~`@types/passport-jwt`~~
-
 ---
 
 ## 9. Folder Structure (Clean Architecture Standard)
@@ -427,50 +423,37 @@ Each module **co-locates its own Drizzle schema** file. The infrastructure barre
 src/
 ├── modules/                        # Business Domains (Vertical Slices)
 │   ├── users/
-│   │   ├── users.model.ts         # Drizzle table: users (co-located with module)
-│   │   ├── users.controller.ts
-│   │   ├── users.service.ts
-│   │   ├── users.routes.ts
-│   │   └── users.repository.ts
+│   │   ├── controllers/            # HTTP handlers
+│   │   ├── models/                 # Drizzle tables (e.g., users)
+│   │   ├── repositories/           # Database operations
+│   │   ├── routes/                 # Express sub-routers
+│   │   ├── services/               # Business logic
+│   │   └── users.module.ts         # Dependency composition file
 │   ├── auth/
-│   │   ├── auth.model.ts          # Drizzle table: refresh_tokens + Zod request models
-│   │   ├── auth.controller.ts      # HTTP handlers: register, login, refresh, logout, logoutAll
-│   │   ├── auth.service.ts         # Business logic: register, login, refresh
-│   │   ├── auth.middleware.ts      # requireAuth() + requireRole() RBAC guard
-│   │   ├── auth.routes.ts          # Express router (with rate limiting on login/register)
-│   │   └── token.service.ts        # JWT sign/verify + refresh token DB lifecycle
+│   │   ├── controllers/            # register, login, refresh handlers
+│   │   ├── dto/                    # Data transfer objects mapping
+│   │   ├── models/                 # Drizzle tables (e.g., refresh_tokens)
+│   │   ├── repositories/           # DB queries for tokens/auth state
+│   │   ├── routes/                 # Router with rate limiting, etc.
+│   │   ├── services/               # Core auth logic and token service
+│   │   ├── types/                  # Internal type definitions
+│   │   ├── validations/            # Zod request validation schemas
+│   │   └── auth.module.ts          # Dependency composition file
 │   ├── sellers/
-│   │   ├── sellers.model.ts       # Drizzle table: sellers (userId FK → users.id)
-│   │   ├── sellers.controller.ts
-│   │   ├── sellers.service.ts
-│   │   ├── sellers.routes.ts
-│   │   └── sellers.repository.ts
+│   │   ├── controllers/
+│   │   ├── models/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   └── sellers.module.ts
 │   ├── categories/
-│   │   ├── categories.model.ts    # Drizzle table: categories
-│   │   ├── categories.controller.ts
-│   │   ├── categories.service.ts
-│   │   ├── categories.routes.ts
-│   │   └── categories.repository.ts
 │   ├── products/
-│   │   ├── products.model.ts      # Drizzle tables: products + product_images (sellerId FK → sellers.id)
-│   │   ├── products.controller.ts
-│   │   ├── products.service.ts
-│   │   ├── products.routes.ts
-│   │   └── products.repository.ts
 │   ├── orders/
-│   │   ├── orders.model.ts        # Drizzle tables: orders (+ optional sellerId) + order_items
-│   │   ├── orders.controller.ts
-│   │   ├── orders.service.ts
-│   │   ├── orders.routes.ts
-│   │   └── orders.repository.ts
-│   └── payments/
-│       ├── payments.model.ts      # Drizzle table: payments
-│       ├── payments.controller.ts
-│       ├── payments.service.ts
-│       ├── payments.routes.ts
-│       └── payments.repository.ts
+│   └── payments/                   # All other modules follow the same structure
 ├── common/                         # Shared logic
-│   └── utils/
+│   ├── constants/                  # Shared system constants 
+│   ├── errors/                     # Custom error definitions
+│   └── utils/                      # Helper functions
 ├── infrastructure/                 # Infrastructure Adapters
 │   ├── database/
 │   │   ├── schema.ts               # Barrel: re-exports all module models + cross-table relations()
@@ -478,13 +461,13 @@ src/
 │   ├── queue/                      # BullMQ config & workers
 │   │   ├── queue.config.ts
 │   │   └── workers/
+├── middlewares/                    # Global app middlewares (error, validation, not found)
 ├── config/                         # App configuration & Zod env validation
 │   └── env.ts
 ├── app.ts                          # Express app initialization (includes cookie-parser)
 └── server.ts                       # Entry point
 ```
 
-> **Removed:** `src/common/strategies/` (Passport JWT strategy directory) — no longer needed.
 
 ### Schema Co-location Strategy
 
