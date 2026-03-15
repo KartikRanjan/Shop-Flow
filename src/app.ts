@@ -14,6 +14,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { env } from '@config/env';
 import { errorHandler, notFound } from '@middlewares';
+import apiRoutes from '@routes';
 import { successResponse } from '@utils';
 import { HTTP_STATUS } from '@constants';
 
@@ -36,6 +37,8 @@ const createApp = () => {
     app.get('/health', (req, res) => {
         res.status(HTTP_STATUS.OK).json(successResponse(null, 'Server is healthy'));
     });
+
+    app.use('/api/v1', apiRoutes);
 
     app.use('*splat', notFound);
     app.use(errorHandler);
