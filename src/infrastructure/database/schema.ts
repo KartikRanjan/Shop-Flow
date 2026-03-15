@@ -5,26 +5,26 @@
  * It allows for easy import of schemas across different modules without needing to specify individual paths.
  * By consolidating schema exports here, we can maintain a cleaner and more organized codebase.
  *
- * Each schema should be defined in its respective module (e.g., user.schema.ts for user-related schemas) and then exported from this file.
+ * Each schema should be defined in its respective module (e.g., user.model.ts for user-related schemas) and then exported from this file.
  * This approach promotes modularity and separation of concerns, making it easier to manage and scale the application as it grows.
  *
  * Example usage:
  * import { users } from './database/schema';
  *
- * This will allow you to access the 'users' schema defined in the user.schema.ts file without needing to specify the full path.
+ * This will allow you to access the 'users' schema defined in the user.model.ts file without needing to specify the full path.
  *
  * Note: Ensure that all schemas are properly defined and exported in their respective files for this central export to work effectively.
  */
 
-export * from '../../modules/users/schemas/user.schema';
-export * from '../../modules/auth/schemas/auth.schema';
+export * from '../../modules/users/models/user.model';
+export * from '../../modules/auth/models/auth.model';
 
 // --- Cross-module Relations ---
 // Defined here to avoid circular imports between module schema files
 
 import { relations } from 'drizzle-orm';
-import { usersTable } from '../../modules/users/schemas/user.schema';
-import { refreshTokens } from '../../modules/auth/schemas/auth.schema';
+import { usersTable } from '../../modules/users/models/user.model';
+import { refreshTokens } from '../../modules/auth/models/auth.model';
 
 export const usersRelations = relations(usersTable, ({ many }) => ({
     refreshTokens: many(refreshTokens),

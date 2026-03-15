@@ -8,7 +8,7 @@ The platform follows a **Hexagonal (Ports and Adapters)** approach implemented w
 
 ### Core Principles
 1.  **Strict Type Safety:** Leveraging TypeScript's advanced type system for compile-time safety across all layers.
-2.  **Dependency Inversion:** Core logic depends on abstractions. We use a DI container (**Awilix**) to manage component lifecycles and decouple implementations.
+2.  **Dependency Inversion:** Core logic depends on abstractions. We use **Manual Dependency Injection** to manage component lifecycles and decouple implementations.
 3.  **Event-Driven Evolution:** Side effects are handled asynchronously using a robust distributed task queue.
 4.  **Schema-First Validation:** **Zod** defines strict boundaries for API requests and environment variables.
 5.  **API Versioning:** All endpoints are versioned (e.g., `/api/v1`) to allow for non-breaking evolution of the interface.
@@ -21,7 +21,7 @@ The platform follows a **Hexagonal (Ports and Adapters)** approach implemented w
 | :--- | :--- | :--- |
 | **Language** | **TypeScript 5.x** | Static typing and modern ESM support for robust backend development. |
 | **Framework** | **Express.js** | Minimalist, flexible, and the most widely adopted Node.js framework. |
-| **DI Container** | **Awilix** | Powerful Dependency Injection for Node.js without the need for decorators. |
+| **DI Strategy** | **Manual Injection** | Explicit dependency management through constructors and a centralized composition root, avoiding magic and improving clarity. |
 | **ORM** | **Drizzle ORM** | Lightweight, type-safe SQL query builder with zero-overhead abstractions and SQL-like syntax. |
 | **Database** | **PostgreSQL** | Reliable relational storage with excellent JSONB support. |
 | **Task Queue** | **BullMQ (Redis)** | Professional-grade distributed task queue for retries and delayed jobs. |
@@ -143,7 +143,7 @@ We use **BullMQ** for robust background processing, providing isolation from the
 
 Schemas are **co-located per module**. Each module defines its own table(s). The infrastructure barrel file re-exports everything for `drizzle-kit` and the runtime Drizzle client.
 
-### `src/modules/users/users.schema.ts`
+### `src/modules/users/users.model.ts`
 ```typescript
 export const users = pgTable('users', {
   id:           uuid('id').defaultRandom().primaryKey(),
@@ -156,7 +156,7 @@ export const users = pgTable('users', {
 });
 ```
 
-### `src/modules/auth/auth.schema.ts`
+### `src/modules/auth/auth.model.ts`
 ```typescript
 // Refresh token store — co-located with the auth module
 export const refreshTokens = pgTable('refresh_tokens', {
@@ -185,7 +185,7 @@ export const loginSchema = z.object({
 });
 ```
 
-### `src/modules/categories/categories.schema.ts`
+### `src/modules/categories/categories.model.ts`
 ```typescript
 export const categories = pgTable('categories', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -196,7 +196,7 @@ export const categories = pgTable('categories', {
 });
 ```
 
-### `src/modules/sellers/sellers.schema.ts`
+### `src/modules/sellers/sellers.model.ts`
 ```typescript
 export const sellers = pgTable('sellers', {
   id:          uuid('id').defaultRandom().primaryKey(),
@@ -213,7 +213,7 @@ export const sellers = pgTable('sellers', {
 
 > A seller **is** a user with `role = 'SELLER'`. The `sellers` table stores only domain-specific data (store profile). Identity and authentication remain in `users`.
 
-### `src/modules/products/products.schema.ts`
+### `src/modules/products/products.model.ts`
 ```typescript
 export const products = pgTable('products', {
   id:          uuid('id').defaultRandom().primaryKey(),
@@ -238,7 +238,7 @@ export const productImages = pgTable('product_images', {
 });
 ```
 
-### `src/modules/orders/orders.schema.ts`
+### `src/modules/orders/orders.model.ts`
 ```typescript
 export const orders = pgTable('orders', {
   id:          uuid('id').defaultRandom().primaryKey(),
@@ -260,7 +260,7 @@ export const orderItems = pgTable('order_items', {
 });
 ```
 
-### `src/modules/payments/payments.schema.ts`
+### `src/modules/payments/payments.model.ts`
 ```typescript
 export const payments = pgTable('payments', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -277,14 +277,14 @@ export const payments = pgTable('payments', {
 
 ### `src/infrastructure/database/schema.ts` (barrel + cross-table relations)
 ```typescript
-// Re-export all module schemas
-export * from '../../modules/users/users.schema';
-export * from '../../modules/auth/auth.schema';       // includes refreshTokens table
-export * from '../../modules/categories/categories.schema';
-export * from '../../modules/sellers/sellers.schema';
-export * from '../../modules/products/products.schema';
-export * from '../../modules/orders/orders.schema';
-export * from '../../modules/payments/payments.schema';
+// Re-export all module models
+export * from '../../modules/users/users.model';
+export * from '../../modules/auth/auth.model';       // includes refreshTokens table
+export * from '../../modules/categories/categories.model';
+export * from '../../modules/sellers/sellers.model';
+export * from '../../modules/products/products.model';
+export * from '../../modules/orders/orders.model';
+export * from '../../modules/payments/payments.model';
 
 // Cross-table relations defined here to avoid circular imports
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -421,50 +421,50 @@ LOGOUT ALL DEVICES
 ## 9. Folder Structure (Clean Architecture Standard)
 
 We utilize **Vertical Slicing** (Feature-based packaging) to keep related concerns together.
-Each module **co-locates its own Drizzle schema** file. The infrastructure barrel re-exports all schemas for `drizzle-kit`.
+Each module **co-locates its own Drizzle schema** file. The infrastructure barrel re-exports all models for `drizzle-kit`.
 
 ```text
 src/
 ├── modules/                        # Business Domains (Vertical Slices)
 │   ├── users/
-│   │   ├── users.schema.ts         # Drizzle table: users (co-located with module)
+│   │   ├── users.model.ts         # Drizzle table: users (co-located with module)
 │   │   ├── users.controller.ts
 │   │   ├── users.service.ts
 │   │   ├── users.routes.ts
 │   │   └── users.repository.ts
 │   ├── auth/
-│   │   ├── auth.schema.ts          # Drizzle table: refresh_tokens + Zod request schemas
+│   │   ├── auth.model.ts          # Drizzle table: refresh_tokens + Zod request models
 │   │   ├── auth.controller.ts      # HTTP handlers: register, login, refresh, logout, logoutAll
 │   │   ├── auth.service.ts         # Business logic: register, login, refresh
 │   │   ├── auth.middleware.ts      # requireAuth() + requireRole() RBAC guard
 │   │   ├── auth.routes.ts          # Express router (with rate limiting on login/register)
 │   │   └── token.service.ts        # JWT sign/verify + refresh token DB lifecycle
 │   ├── sellers/
-│   │   ├── sellers.schema.ts       # Drizzle table: sellers (userId FK → users.id)
+│   │   ├── sellers.model.ts       # Drizzle table: sellers (userId FK → users.id)
 │   │   ├── sellers.controller.ts
 │   │   ├── sellers.service.ts
 │   │   ├── sellers.routes.ts
 │   │   └── sellers.repository.ts
 │   ├── categories/
-│   │   ├── categories.schema.ts    # Drizzle table: categories
+│   │   ├── categories.model.ts    # Drizzle table: categories
 │   │   ├── categories.controller.ts
 │   │   ├── categories.service.ts
 │   │   ├── categories.routes.ts
 │   │   └── categories.repository.ts
 │   ├── products/
-│   │   ├── products.schema.ts      # Drizzle tables: products + product_images (sellerId FK → sellers.id)
+│   │   ├── products.model.ts      # Drizzle tables: products + product_images (sellerId FK → sellers.id)
 │   │   ├── products.controller.ts
 │   │   ├── products.service.ts
 │   │   ├── products.routes.ts
 │   │   └── products.repository.ts
 │   ├── orders/
-│   │   ├── orders.schema.ts        # Drizzle tables: orders (+ optional sellerId) + order_items
+│   │   ├── orders.model.ts        # Drizzle tables: orders (+ optional sellerId) + order_items
 │   │   ├── orders.controller.ts
 │   │   ├── orders.service.ts
 │   │   ├── orders.routes.ts
 │   │   └── orders.repository.ts
 │   └── payments/
-│       ├── payments.schema.ts      # Drizzle table: payments
+│       ├── payments.model.ts      # Drizzle table: payments
 │       ├── payments.controller.ts
 │       ├── payments.service.ts
 │       ├── payments.routes.ts
@@ -473,12 +473,11 @@ src/
 │   └── utils/
 ├── infrastructure/                 # Infrastructure Adapters
 │   ├── database/
-│   │   ├── schema.ts               # Barrel: re-exports all module schemas + cross-table relations()
+│   │   ├── schema.ts               # Barrel: re-exports all module models + cross-table relations()
 │   │   └── index.ts                # Drizzle client (Pool + drizzle(pool, { schema }))
 │   ├── queue/                      # BullMQ config & workers
 │   │   ├── queue.config.ts
 │   │   └── workers/
-│   └── container.ts                # Awilix DI Container Setup
 ├── config/                         # App configuration & Zod env validation
 │   └── env.ts
 ├── app.ts                          # Express app initialization (includes cookie-parser)
@@ -490,7 +489,7 @@ src/
 ### Schema Co-location Strategy
 
 ```text
-each module/*.schema.ts   ──exports──►  infrastructure/database/schema.ts (barrel)
+each module/*.model.ts   ──exports──►  infrastructure/database/schema.ts (barrel)
                                                   │
                           ◄──imports──   drizzle-kit (for migrations)
                                                   │
@@ -570,7 +569,7 @@ Cross-table `relations()` are defined in the barrel to avoid circular imports be
 
 ## 11. Development & Tooling
 
-*   **Dependency Injection:** Components are wired using **Awilix**, enabling easy mocking for unit tests.
+*   **Dependency Injection:** Components are wired manually through constructors, enabling easy mocking for unit tests without a container library.
 *   **Migrations:** **Drizzle Kit** manages schema migrations (`drizzle-kit generate` / `drizzle-kit migrate`).
 *   **Documentation:** **Swagger-jsdoc** for generating OpenAPI specs from JSDoc comments.
 *   **Testing:** **Jest** for unit tests and **Supertest** for API integration tests.

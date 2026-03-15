@@ -1,6 +1,6 @@
 /**
  *
- * @module auth/schemas/auth.schema
+ * @module auth/models/auth.model
  * @description This file defines the database schema for the authentication module, specifically for managing refresh tokens
  *
  * This schema is essential for implementing secure authentication mechanisms, allowing the application to manage user sessions effectively. By storing refresh tokens in the database, the application can validate and revoke tokens as needed, enhancing security and user experience.
@@ -8,9 +8,9 @@
  * Note: Ensure that the necessary indexes are created on the token field for efficient querying, especially when validating refresh tokens during authentication processes.
  *
  * Example usage:
- * import { refreshTokens } from './auth.schema';
+ * import { refreshTokens } from './auth.model';
  *
- * This will allow you to access the 'refreshTokens' schema defined in this file for performing database operations related to refresh tokens.
+ * This will allow you to access the 'refreshTokens' model defined in this file for performing database operations related to refresh tokens.
  *
  */
 

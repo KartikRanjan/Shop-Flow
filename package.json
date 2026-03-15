@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "argon2": "^0.44.0",
-    "awilix": "^13.0.3",
     "bullmq": "^5.70.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
