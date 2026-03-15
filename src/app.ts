@@ -13,7 +13,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { env } from './config/env';
-import { errorHandler } from './middlewares';
+import { errorHandler, notFound } from './middlewares';
 
 const createApp = () => {
     const app: Express = express();
@@ -35,6 +35,7 @@ const createApp = () => {
         res.json({ status: 'OK' });
     });
 
+    app.use('*splat', notFound);
     app.use(errorHandler);
 
     return app;
