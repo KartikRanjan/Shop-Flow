@@ -1,11 +1,11 @@
 /**
  * Request Validation Middleware
- * @module middlewares/validate-request
+ * @module middlewares
  * @description Middleware to validate incoming requests using Zod schemas. It parses the request body, query, and params against the provided schema and overwrites the original request data with the validated/transformed data. If validation fails, it throws a ValidationError with details about the issues.
  */
 
 import { type ZodType } from 'zod';
-import { ValidationError } from '../errors';
+import { ValidationError } from '@errors';
 import type { Request, Response, NextFunction } from 'express';
 
 type RequestSchemaShape = {

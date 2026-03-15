@@ -1,12 +1,13 @@
-import { logger } from '../../logger';
-import type { PaginatedResult } from '../../../types/pagination.types';
-import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../../../constants';
-
 /**
- * Base Repository Class
- * @description Base repository class that provides common database operations.
- * All repositories should extend this class to ensure consistent behavior.
+ * BaseRepository
+ * @module infrastructure/database/repositories
+ * @description Abstract base class providing common database helpers — pagination, soft-delete, sanitization.
+ * All feature repositories should extend this class.
  */
+
+import { logger } from '@infrastructure/logger';
+import type { PaginatedResult } from '@types';
+import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@constants';
 
 export class BaseRepository {
     protected logger = logger;

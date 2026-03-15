@@ -1,6 +1,6 @@
 /**
  * Database Schemas
- * @module database/schemas
+ * @module infrastructure/database
  * @description This file serves as a central point for exporting all database schemas used in the application.
  * It allows for easy import of schemas across different modules without needing to specify individual paths.
  * By consolidating schema exports here, we can maintain a cleaner and more organized codebase.
@@ -16,15 +16,15 @@
  * Note: Ensure that all schemas are properly defined and exported in their respective files for this central export to work effectively.
  */
 
-export * from '../../modules/users/models/user.model';
-export * from '../../modules/auth/models/auth.model';
+export * from '@modules/users/models/user.model';
+export * from '@modules/auth/models/auth.model';
 
 // --- Cross-module Relations ---
 // Defined here to avoid circular imports between module schema files
 
 import { relations } from 'drizzle-orm';
-import { usersTable } from '../../modules/users/models/user.model';
-import { refreshTokens } from '../../modules/auth/models/auth.model';
+import { usersTable } from '@modules/users/models/user.model';
+import { refreshTokens } from '@modules/auth/models/auth.model';
 
 export const usersRelations = relations(usersTable, ({ many }) => ({
     refreshTokens: many(refreshTokens),

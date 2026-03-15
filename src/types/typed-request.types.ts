@@ -1,6 +1,6 @@
 /**
  * TypedRequest Utility
- * @module types/typed-request
+ * @module types
  * @description Provides a `TypedRequest` generic that automatically infers `req.body`,
  * `req.query`, and `req.params` types directly from a Zod request schema.
  *

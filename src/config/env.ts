@@ -1,3 +1,8 @@
+/**
+ * Environment Configuration
+ * @module config
+ * @description Parses and validates environment variables using Zod.
+ */
 import 'dotenv/config';
 import { z } from 'zod';
 

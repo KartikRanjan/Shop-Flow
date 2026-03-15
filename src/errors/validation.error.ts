@@ -1,11 +1,11 @@
 /**
  * Validation Error Class
- * @module ValidationError
+ * @module errors
  * @description Custom error class for validation errors.
  */
 
 import AppError from './app.error';
-import { ERROR_CODE, HTTP_STATUS } from '../constants';
+import { ERROR_CODE, HTTP_STATUS } from '@constants';
 
 export default class ValidationError extends AppError {
     constructor(message: string = 'Validation error', details?: unknown) {

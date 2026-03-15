@@ -1,6 +1,11 @@
+/**
+ * Server Entry Point
+ * @module server
+ * @description Bootstraps and starts the Express application server.
+ */
 import { logger } from '@infrastructure/logger';
 import createApp from './app';
-import { env } from './config/env';
+import { env } from '@config/env';
 
 function main(): void {
     try {
@@ -9,7 +14,7 @@ function main(): void {
         app.listen(port, () => {
             logger.info(`Server is running on port ${port}`);
         });
-    } catch (error) {
+    } catch (error: unknown) {
         logger.error({ error }, 'Error starting server:');
     }
 }

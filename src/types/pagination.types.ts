@@ -1,6 +1,6 @@
 /**
  * Shared Pagination Types
- * @module types/pagination.types
+ * @module types
  * @description Cross-cutting pagination shapes used by any repository or service
  * that returns paginated results. Kept in src/types/ because they are not
  * owned by any single module.

@@ -1,7 +1,8 @@
-import { ERROR_CODE, HTTP_STATUS } from '../constants';
+import { ERROR_CODE, HTTP_STATUS } from '@constants';
 
 /**
  * Base Application Error Class
+ * @module errors
  * @description Structured error handling following coding standards with object
  * parameters, proper error codes, HTTP status codes, and operational error classification.
  * This class serves as the base for all custom errors in the application, providing

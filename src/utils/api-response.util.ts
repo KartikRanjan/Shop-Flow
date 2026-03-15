@@ -1,6 +1,6 @@
 /**
  * API Response Utility
- * @module api-response.util
+ * @module utils
  * @description Pure factory functions that return a standardised response shape.
  * Controllers own the HTTP concern (res.status + res.json); these helpers only
  * build the consistent envelope. This makes the utilities easy to unit-test

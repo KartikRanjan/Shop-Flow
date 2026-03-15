@@ -1,14 +1,14 @@
 /**
  * Database Connection and Drizzle ORM Setup
- * @module database/index
+ * @module infrastructure/database
  * @description This file establishes the connection to the PostgreSQL database using the 'pg' library and sets up Drizzle ORM for database interactions.
  * It imports the database schema from the 'schema.ts' file and initializes the Drizzle ORM instance with the connection pool and schema.
  */
 
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { env } from '../../config/env';
-import { logger } from '../logger';
+import { env } from '@config/env';
+import { logger } from '@infrastructure/logger';
 import * as schema from './schema';
 
 const pool = new Pool({
@@ -20,11 +20,11 @@ pool.query('SELECT 1')
     .then(() => {
         logger.info('Database connection established');
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
         logger.error({ err }, 'Database connection failed');
     });
 
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
     logger.error({ err }, 'Database pool error');
 });
 

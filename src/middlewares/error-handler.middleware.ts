@@ -1,16 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Global Error Handling Middleware
- * @module errorHandler
- * @description error-handler.middleware.ts - Global error handling middleware for the Express application.
+ * @module middlewares
+ * @description Global error handling middleware for the Express application.
  * Handles both operational AppErrors (structured) and unexpected errors (generic 500).
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { AppError } from '../errors';
-import { errorResponse } from '../utils';
-import { ERROR_CODE, HTTP_STATUS } from '../constants';
-import { logger } from '../infrastructure/logger';
+import { AppError } from '@errors';
+import { errorResponse } from '@utils';
+import { ERROR_CODE, HTTP_STATUS } from '@constants';
+import { logger } from '@infrastructure/logger';
 
 export const errorHandler = (
     err: Error | AppError,

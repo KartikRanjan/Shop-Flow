@@ -1,13 +1,13 @@
 /**
  * Logger instance for the application.
- * @module logger
+ * @module infrastructure/logger
  * @description Centralized logger configuration using Pino.
  * Provides a single logger instance that can be imported and used across all modules.
  * Configures log level based on environment (debug for development, info for production).
  * In development, logs are pretty-printed with colors for better readability.
  */
 
-import { env } from '../../config/env';
+import { env } from '@config/env';
 import pino from 'pino';
 
 export const logger = pino({

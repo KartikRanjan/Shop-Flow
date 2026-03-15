@@ -12,8 +12,10 @@ import cors from 'cors';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { env } from './config/env';
-import { errorHandler, notFound } from './middlewares';
+import { env } from '@config/env';
+import { errorHandler, notFound } from '@middlewares';
+import { successResponse } from '@utils';
+import { HTTP_STATUS } from '@constants';
 
 const createApp = () => {
     const app: Express = express();
@@ -32,7 +34,7 @@ const createApp = () => {
     app.use(cookieParser());
 
     app.get('/health', (req, res) => {
-        res.json({ status: 'OK' });
+        res.status(HTTP_STATUS.OK).json(successResponse(null, 'Server is healthy'));
     });
 
     app.use('*splat', notFound);

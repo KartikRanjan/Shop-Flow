@@ -1,11 +1,11 @@
 /**
  * Not Found Error Class
- * @module NotFoundError
+ * @module errors
  * @description Represents a 404 Not Found error, typically used when a requested resource cannot be found.
  */
 
 import AppError from './app.error';
-import { ERROR_CODE, HTTP_STATUS } from '../constants';
+import { ERROR_CODE, HTTP_STATUS } from '@constants';
 
 export default class NotFoundError extends AppError {
     constructor(message: string = 'Resource not found', details?: unknown) {
