@@ -45,3 +45,7 @@ export const ERROR_CODE = {
     AUTHENTICATION_RATE_LIMIT_EXCEEDED: 'AUTHENTICATION_RATE_LIMIT_EXCEEDED',
     REQUEST_TOO_LARGE: 'REQUEST_TOO_LARGE',
 } as const;
+
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const AUTH_COOKIE_PATH = '/api/v1/auth';

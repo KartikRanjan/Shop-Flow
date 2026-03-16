@@ -7,12 +7,15 @@
 import { Router } from 'express';
 import { authController } from '../auth.module';
 import { loginRequestSchema, registerRequestSchema } from '../validations';
-import { validateRequest } from '@middlewares';
+import { validateRequest, authenticate } from '@middlewares';
 
 const router = Router();
 
 router.post('/login', validateRequest(loginRequestSchema), authController.login);
 router.post('/register', validateRequest(registerRequestSchema), authController.register);
-router.post('/logout', authController.logout);
+router.post('/refresh', authController.refresh);
+router.post('/logout', authenticate.all, authController.logout);
+router.post('/logout-all', authenticate.all, authController.logoutAll);
+router.get('/active-sessions', authenticate.all, authController.getActiveSessions);
 
 export default router;

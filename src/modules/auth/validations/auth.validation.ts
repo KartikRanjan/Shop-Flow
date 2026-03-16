@@ -22,6 +22,7 @@ export const registerBodySchema = z.object({
 export const loginBodySchema = z.object({
     email: z.string().trim().toLowerCase().email('Invalid email address'),
     password: z.string().min(1, 'Password is required').max(255),
+    device: z.string().optional(),
 });
 
 // Full request schemas for middleware validation

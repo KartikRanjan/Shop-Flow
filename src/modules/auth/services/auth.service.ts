@@ -6,18 +6,24 @@
 
 import argon2 from 'argon2';
 import { AppError } from '@errors';
-import { ERROR_CODE, HTTP_STATUS } from '@constants';
+import { DAY_MS, ERROR_CODE, HTTP_STATUS } from '@constants';
 import type {
     IAuthRepository,
     IAuthService,
+    LoginResult,
     LoginUserInput,
+    RefreshResult,
+    RefreshToken,
     RegisterUserInput,
     User,
 } from '../types';
+import { env } from '@config/env';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils/jwt.util';
 
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}
 
+    /** Registers a new user with the provided data */
     async registerUser(data: RegisterUserInput): Promise<User> {
         const existingUser = await this.authRepository.findByEmail(data.email);
 
@@ -34,7 +40,8 @@ export default class AuthService implements IAuthService {
         return this.authRepository.register({ ...data, passwordHash });
     }
 
-    async loginUser(data: LoginUserInput): Promise<User> {
+    /** Logs in a user and returns the user data along with access and refresh tokens */
+    async loginUser(data: LoginUserInput): Promise<LoginResult> {
         const user = await this.authRepository.findByEmail(data.email);
 
         if (!user) {
@@ -42,6 +49,14 @@ export default class AuthService implements IAuthService {
                 message: 'Invalid email or password',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+            });
+        }
+
+        if (!user.isActive || user.deletedAt) {
+            throw new AppError({
+                message: `User account is ${user.deletedAt ? 'has been deleted' : 'inactive'}`,
+                statusCode: HTTP_STATUS.FORBIDDEN,
+                errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
             });
         }
 
@@ -55,6 +70,117 @@ export default class AuthService implements IAuthService {
             });
         }
 
-        return user;
+        const refreshExpiryDays = Number(env.REFRESH_TOKEN_EXPIRES_IN_DAYS);
+
+        const newRefreshSession = await this.authRepository.createRefreshSession({
+            userId: user.id,
+            expiresAt: new Date(Date.now() + refreshExpiryDays * DAY_MS),
+            device: data.device,
+            ip: data.ip,
+            userAgent: data.userAgent,
+        });
+
+        // Enforce a maximum number of active sessions to prevent database bloat
+        const MAX_ACTIVE_SESSIONS = 5;
+        const activeSessions = await this.authRepository.findActiveSessionsByUser(user.id);
+
+        if (activeSessions.length > MAX_ACTIVE_SESSIONS) {
+            // Sort by expiration date ascending (oldest expiring first)
+            activeSessions.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+            const sessionsToRevoke = activeSessions.slice(
+                0,
+                activeSessions.length - MAX_ACTIVE_SESSIONS,
+            );
+
+            await Promise.all(
+                sessionsToRevoke.map((session) =>
+                    this.authRepository.revokeRefreshSession(session.id),
+                ),
+            );
+        }
+
+        const refreshToken = generateRefreshToken(
+            { sub: user.id, jti: newRefreshSession.id },
+            `${refreshExpiryDays}d`,
+        );
+
+        const accessToken = generateAccessToken(
+            { sub: user.id, email: user.email, roles: user.roles, sid: newRefreshSession.id },
+            env.ACCESS_TOKEN_EXPIRES_IN,
+        );
+
+        return { user, accessToken, refreshToken } satisfies LoginResult;
+    }
+
+    /** Refreshes access and refresh tokens */
+    async refreshTokens(refreshToken: string): Promise<RefreshResult> {
+        const payload = verifyRefreshToken(refreshToken);
+
+        // Atomically check AND revoke the session in a single database operation
+        const session = await this.authRepository.consumeRefreshSession(payload.jti);
+
+        if (!session || session.expiresAt < new Date()) {
+            throw new AppError({
+                message: 'Refresh token is invalid or has been revoked',
+                statusCode: HTTP_STATUS.UNAUTHORIZED,
+                errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+            });
+        }
+
+        const user = await this.authRepository.findById(session.userId);
+
+        if (!user) {
+            throw new AppError({
+                message: 'User associated with refresh token not found',
+                statusCode: HTTP_STATUS.UNAUTHORIZED,
+                errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+            });
+        }
+
+        if (!user.isActive || user.deletedAt) {
+            throw new AppError({
+                message: `User account is ${user?.deletedAt ? 'has been deleted' : 'inactive'}`,
+                statusCode: HTTP_STATUS.FORBIDDEN,
+                errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
+            });
+        }
+
+        const refreshExpiryDays = Number(env.REFRESH_TOKEN_EXPIRES_IN_DAYS);
+
+        const newRefreshSession = await this.authRepository.createRefreshSession({
+            userId: user.id,
+            expiresAt: new Date(Date.now() + refreshExpiryDays * DAY_MS),
+            device: session.device,
+            ip: session.ip,
+            userAgent: session.userAgent,
+        });
+
+        const newRefreshToken = generateRefreshToken(
+            { sub: user.id, jti: newRefreshSession.id },
+            `${refreshExpiryDays}d`,
+        );
+
+        const accessToken = generateAccessToken(
+            { sub: user.id, email: user.email, roles: user.roles, sid: newRefreshSession.id },
+            env.ACCESS_TOKEN_EXPIRES_IN,
+        );
+
+        return { accessToken, refreshToken: newRefreshToken } satisfies RefreshResult;
+    }
+
+    /** Logs out a user by revoking their refresh token */
+    async logout(refreshToken: string): Promise<void> {
+        const payload = verifyRefreshToken(refreshToken);
+        await this.authRepository.revokeRefreshSession(payload.jti);
+    }
+
+    /** Logs out all sessions for a user by revoking their refresh tokens */
+    async logoutAll(userId: string): Promise<void> {
+        await this.authRepository.revokeAllUserSessions(userId);
+    }
+
+    /** Retrieves all active sessions for the user associated with the provided access token */
+    async getActiveSessions(userId: string): Promise<RefreshToken[]> {
+        return this.authRepository.findActiveSessionsByUser(userId);
     }
 }
