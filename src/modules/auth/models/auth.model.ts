@@ -8,16 +8,16 @@
  * Note: Ensure that the necessary indexes are created on the token field for efficient querying, especially when validating refresh tokens during authentication processes.
  *
  * Example usage:
- * import { refreshTokens } from './auth.model';
+ * import { refreshSessions } from './auth.model';
  *
- * This will allow you to access the 'refreshTokens' model defined in this file for performing database operations related to refresh tokens.
+ * This will allow you to access the 'refreshSessions' model defined in this file for performing database operations related to refresh sessions.
  *
  */
 
 import { usersTable } from '@infrastructure/database/schema';
 import { pgTable, uuid, varchar, timestamp, text } from 'drizzle-orm/pg-core';
 
-export const refreshTokens = pgTable('refresh_tokens', {
+export const refreshSessions = pgTable('refresh_sessions', {
     id: uuid('id').primaryKey().defaultRandom(),
     userId: uuid('user_id')
         .notNull()

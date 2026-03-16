@@ -24,15 +24,15 @@ export * from '@modules/auth/models/auth.model';
 
 import { relations } from 'drizzle-orm';
 import { usersTable } from '@modules/users/models/user.model';
-import { refreshTokens } from '@modules/auth/models/auth.model';
+import { refreshSessions } from '@modules/auth/models/auth.model';
 
 export const usersRelations = relations(usersTable, ({ many }) => ({
-    refreshTokens: many(refreshTokens),
+    refreshSessions: many(refreshSessions),
 }));
 
-export const refreshTokensRelations = relations(refreshTokens, ({ one }) => ({
+export const refreshSessionsRelations = relations(refreshSessions, ({ one }) => ({
     user: one(usersTable, {
-        fields: [refreshTokens.userId],
+        fields: [refreshSessions.userId],
         references: [usersTable.id],
     }),
 }));
