@@ -11,6 +11,7 @@ import { AppError } from '@errors';
 import { errorResponse } from '@utils';
 import { ERROR_CODE, HTTP_STATUS } from '@constants';
 import { logger } from '@infrastructure/logger';
+import { env } from '@config/env';
 
 export const errorHandler = (
     err: Error | AppError,
@@ -28,9 +29,29 @@ export const errorHandler = (
     }
 
     // Unexpected / programming error — log full stack, return generic 500
-    logger.error({ err }, 'Unhandled error');
+    logger.error(
+        {
+            err,
+            request: {
+                method: req.method,
+                url: req.originalUrl,
+                params: req.params,
+                query: req.query,
+                user: req.user ? { id: req.user.id } : 'anonymous',
+            },
+        },
+        'Unhandled error',
+    );
 
-    return res
-        .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
-        .json(errorResponse('Internal Server Error', ERROR_CODE.INTERNAL_SERVER_ERROR));
+    const message =
+        env.NODE_ENV === 'production'
+            ? 'Internal Server Error'
+            : err.message || 'Internal Server Error';
+
+    const stack = env.NODE_ENV === 'production' ? undefined : err.stack;
+
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+        ...errorResponse(message, ERROR_CODE.INTERNAL_SERVER_ERROR),
+        ...(stack && { stack }),
+    });
 };

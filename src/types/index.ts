@@ -4,3 +4,4 @@
  */
 export * from './pagination.types';
 export type { TypedRequest } from './typed-request.types';
+export * from './util.types';

@@ -1,4 +1,5 @@
 /**
+ * Utilities
  * @module utils
  * @description This module exports utility functions and types for the application.
  */
