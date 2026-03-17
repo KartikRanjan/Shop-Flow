@@ -23,7 +23,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}
 
-    /** Registers a new user with the provided data */
+    /** Ensures email uniqueness and hashes password before user creation */
     async registerUser(data: RegisterUserInput): Promise<User> {
         const existingUser = await this.authRepository.findByEmail(data.email);
 
@@ -40,7 +40,7 @@ export default class AuthService implements IAuthService {
         return this.authRepository.register({ ...data, passwordHash });
     }
 
-    /** Logs in a user and returns the user data along with access and refresh tokens */
+    /** Validates credentials/status and enforces a 5-session limit per user */
     async loginUser(data: LoginUserInput): Promise<LoginResult> {
         const user = await this.authRepository.findByEmail(data.email);
 
@@ -112,7 +112,7 @@ export default class AuthService implements IAuthService {
         return { user, accessToken, refreshToken } satisfies LoginResult;
     }
 
-    /** Refreshes access and refresh tokens */
+    /** Rotates tokens by atomically consuming the old session and creating a new one */
     async refreshTokens(refreshToken: string): Promise<RefreshResult> {
         const payload = verifyRefreshToken(refreshToken);
 
@@ -168,7 +168,7 @@ export default class AuthService implements IAuthService {
         return { accessToken, refreshToken: newRefreshToken } satisfies RefreshResult;
     }
 
-    /** Logs out a user by revoking their refresh token */
+    /** Revokes a session after verifying it belongs to the authenticated user */
     async logout(userId: string, refreshToken: string): Promise<void> {
         const payload = verifyRefreshToken(refreshToken);
         const session = await this.authRepository.findRefreshSession(payload.jti);
@@ -184,12 +184,10 @@ export default class AuthService implements IAuthService {
         await this.authRepository.revokeRefreshSession(payload.jti);
     }
 
-    /** Logs out all sessions for a user by revoking their refresh tokens */
     async logoutAll(userId: string): Promise<void> {
         await this.authRepository.revokeAllUserSessions(userId);
     }
 
-    /** Retrieves all active sessions for the user associated with the provided access token */
     async getActiveSessions(userId: string): Promise<RefreshToken[]> {
         return this.authRepository.findActiveSessionsByUser(userId);
     }

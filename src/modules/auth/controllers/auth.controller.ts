@@ -17,15 +17,15 @@ import { env } from '@config/env';
 export default class AuthController {
     constructor(private readonly authService: IAuthService) {}
 
+    /** Register a new user */
     register = async (req: TypedRequest<typeof registerRequestSchema>, res: Response) => {
         const newUser = await this.authService.registerUser(req.body);
-
-        const userDto = toAuthUserDto(newUser);
         return res
             .status(HTTP_STATUS.CREATED)
-            .json(successResponse(userDto, 'User registered successfully'));
+            .json(successResponse(toAuthUserDto(newUser), 'User registered successfully'));
     };
 
+    /** Authenticate user and issue tokens */
     login = async (req: TypedRequest<typeof loginRequestSchema>, res: Response) => {
         const ip =
             (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.ip;
@@ -50,6 +50,7 @@ export default class AuthController {
             .json(successResponse({ user: toAuthUserDto(user), accessToken }, 'Login successful'));
     };
 
+    /** Refresh access and refresh tokens */
     refresh = async (req: Request, res: Response) => {
         const refreshToken = req.cookies?.refreshToken as string | undefined;
 
@@ -77,6 +78,7 @@ export default class AuthController {
             .json(successResponse({ accessToken }, 'Tokens refreshed successfully'));
     };
 
+    /** Revoke current session and clear cookies */
     logout = async (req: Request, res: Response) => {
         const refreshToken = req.cookies?.refreshToken as string | undefined;
 
@@ -99,6 +101,7 @@ export default class AuthController {
         return res.status(HTTP_STATUS.OK).json(successResponse(null, 'Logout successful'));
     };
 
+    /** Revoke all active sessions for the user */
     logoutAll = async (req: Request, res: Response) => {
         await this.authService.logoutAll(req.user!.id);
 
@@ -112,6 +115,7 @@ export default class AuthController {
         return res.status(HTTP_STATUS.OK).json(successResponse(null, 'All sessions logged out'));
     };
 
+    /** Retrieve all active sessions for the user */
     getActiveSessions = async (req: Request, res: Response) => {
         const sessions = await this.authService.getActiveSessions(req.user!.id);
         return res

@@ -79,6 +79,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         return session ?? null;
     }
 
+    /** Atomically marks session as revoked and returns it if it was active */
     async consumeRefreshSession(jti: string): Promise<RefreshToken | null> {
         const result = await this.db
             .update(refreshSessions)

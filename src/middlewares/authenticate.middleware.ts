@@ -141,50 +141,30 @@ export const authenticate = {
             }
         },
 
-    /**
-     * Middleware to allow any authenticated user regardless of role
-     */
-
     all: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles(Object.values(USER_ROLES) as UserRole[])(req, res, next);
     },
 
-    /**
-     * Convenience middleware for USER role
-     */
     user: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles([USER_ROLES.USER])(req, res, next);
     },
 
-    /**
-     * Convenience middleware for ADMIN role
-     */
     admin: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles([USER_ROLES.ADMIN])(req, res, next);
     },
 
-    /**
-     * Convenience middleware for SELLER role
-     */
     seller: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles([USER_ROLES.SELLER])(req, res, next);
     },
-    /**
-     * Convenience middleware for USER and ADMIN roles
-     */
+
     userAndAdmin: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles([USER_ROLES.USER, USER_ROLES.ADMIN])(req, res, next);
     },
 
-    /**
-     * Convenience middleware for USER and SELLER roles
-     */
     userAndSeller: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles([USER_ROLES.USER, USER_ROLES.SELLER])(req, res, next);
     },
-    /**
-     * Convenience middleware for ADMIN and SELLER roles
-     */
+
     adminAndSeller: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles([USER_ROLES.ADMIN, USER_ROLES.SELLER])(req, res, next);
     },
