@@ -9,6 +9,9 @@ import { extractAndVerifyAccessToken } from '@utils/jwt.util';
 import { AppError } from '@errors';
 import { ERROR_CODE, HTTP_STATUS, USER_ROLES, type UserRole } from '@constants';
 import { db } from '@infrastructure/database';
+import { refreshSessions } from '@modules/auth/models/auth.model';
+import { usersTable } from '@modules/users/models/user.model';
+import { eq, and, isNull, gt } from 'drizzle-orm';
 import type { Request, Response, NextFunction } from 'express';
 
 /**
@@ -20,7 +23,7 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
     const payload = extractAndVerifyAccessToken(authHeader);
 
     // Defensive check on payload
-    if (!payload?.sub || !payload.email || !Array.isArray(payload.roles)) {
+    if (!payload?.sub || !payload.email || !payload.sid || !Array.isArray(payload.roles)) {
         throw new AppError({
             message: 'Invalid or malformed token payload',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -28,16 +31,36 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    const session = await db.query.refreshSessions.findFirst({
-        where: (refreshSessions, { eq, and, isNull, gt }) =>
+    // INNER JOIN ensures the query returns nothing if user is missing, inactive, or soft-deleted
+    // (equivalent to MongoDB's $lookup + $unwind without preserveNullAndEmptyArrays)
+    const result = await db
+        .select({
+            user: {
+                id: usersTable.id,
+                email: usersTable.email,
+                roles: usersTable.roles,
+            },
+            session: refreshSessions,
+        })
+        .from(refreshSessions)
+        .innerJoin(
+            usersTable,
+            and(
+                eq(refreshSessions.userId, usersTable.id),
+                eq(usersTable.isActive, true),
+                isNull(usersTable.deletedAt),
+            ),
+        )
+        .where(
             and(
                 eq(refreshSessions.id, payload.sid),
-                isNull(refreshSessions.revokedAt),
+                eq(refreshSessions.userId, payload.sub),
                 gt(refreshSessions.expiresAt, new Date()),
             ),
-    });
+        )
+        .limit(1);
 
-    if (!session) {
+    if (result.length === 0) {
         throw new AppError({
             message: 'Invalid or expired access token',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -45,26 +68,31 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    // Database check to ensure user still exists and is active
-    // This provides robustness against deleted or deactivated accounts even if the token is still valid
-    const user = await db.query.users.findFirst({
-        where: (users, { eq, and, isNull }) =>
-            and(eq(users.id, payload.sub), eq(users.isActive, true), isNull(users.deletedAt)),
-    });
+    const session = result[0].session;
 
-    if (!user) {
-        throw new AppError({
-            message: 'User not found or account is inactive',
-            statusCode: HTTP_STATUS.UNAUTHORIZED,
-            errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
-        });
+    // Implement a 30-second grace period for revoked sessions
+    // to allow in-flight requests during token refresh to complete
+    if (session.revokedAt) {
+        const GRACE_PERIOD_MS = 30 * 1000;
+        const revokedTime = new Date(session.revokedAt).getTime();
+        const now = Date.now();
+
+        if (now - revokedTime > GRACE_PERIOD_MS) {
+            throw new AppError({
+                message: 'Invalid or expired access token',
+                statusCode: HTTP_STATUS.UNAUTHORIZED,
+                errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+            });
+        }
     }
 
-    if (!user.isActive || user.deletedAt) {
+    const user = result[0].user;
+
+    if (user.email !== payload.email) {
         throw new AppError({
-            message: `User account is ${user?.deletedAt ? 'has been deleted' : 'inactive'}`,
-            statusCode: HTTP_STATUS.FORBIDDEN,
-            errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
+            message: 'Invalid or malformed token payload',
+            statusCode: HTTP_STATUS.UNAUTHORIZED,
+            errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
         });
     }
 

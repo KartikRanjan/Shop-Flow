@@ -88,7 +88,7 @@ export default class AuthController {
             });
         }
 
-        await this.authService.logout(refreshToken);
+        await this.authService.logout(req.user!.id, refreshToken);
 
         res.clearCookie('refreshToken', {
             httpOnly: true,

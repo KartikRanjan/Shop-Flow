@@ -169,8 +169,18 @@ export default class AuthService implements IAuthService {
     }
 
     /** Logs out a user by revoking their refresh token */
-    async logout(refreshToken: string): Promise<void> {
+    async logout(userId: string, refreshToken: string): Promise<void> {
         const payload = verifyRefreshToken(refreshToken);
+        const session = await this.authRepository.findRefreshSession(payload.jti);
+
+        if (session?.userId !== userId) {
+            throw new AppError({
+                message: 'Refresh token is invalid or does not belong to the authenticated user',
+                statusCode: HTTP_STATUS.UNAUTHORIZED,
+                errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+            });
+        }
+
         await this.authRepository.revokeRefreshSession(payload.jti);
     }
 

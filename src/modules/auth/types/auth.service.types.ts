@@ -28,7 +28,7 @@ export interface IAuthService {
     registerUser(data: RegisterUserInput): Promise<User>;
     loginUser(data: LoginUserInput): Promise<LoginResult>;
     refreshTokens(refreshToken: string): Promise<RefreshResult>;
-    logout(jti: string): Promise<void>;
+    logout(userId: string, refreshToken: string): Promise<void>;
     logoutAll(userId: string): Promise<void>;
     getActiveSessions(userId: string): Promise<RefreshToken[]>;
 }
