@@ -10,10 +10,7 @@ import { ERROR_CODE, HTTP_STATUS } from '@constants';
 import type { AccessTokenPayload, RefreshTokenPayload } from '@types';
 import jwt from 'jsonwebtoken';
 
-export const generateAccessToken = (
-    payload: AccessTokenPayload,
-    expiresIn: string | number,
-): string => {
+export const generateAccessToken = (payload: AccessTokenPayload, expiresIn: string | number): string => {
     const token = jwt.sign(payload, env.JWT_ACCESS_SECRET, {
         expiresIn: expiresIn as jwt.SignOptions['expiresIn'],
     });
@@ -33,10 +30,7 @@ export const verifyAccessToken = (token: string): AccessTokenPayload => {
     }
 };
 
-export const generateRefreshToken = (
-    payload: RefreshTokenPayload,
-    expiresIn: string | number,
-): string => {
+export const generateRefreshToken = (payload: RefreshTokenPayload, expiresIn: string | number): string => {
     const token = jwt.sign(payload, env.JWT_REFRESH_SECRET, {
         expiresIn: expiresIn as jwt.SignOptions['expiresIn'],
     });

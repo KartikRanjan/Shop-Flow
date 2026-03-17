@@ -87,22 +87,12 @@ export default class AuthService implements IAuthService {
         if (activeSessions.length > MAX_ACTIVE_SESSIONS) {
             // Sort by expiration date ascending (oldest expiring first)
             activeSessions.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
-            const sessionsToRevoke = activeSessions.slice(
-                0,
-                activeSessions.length - MAX_ACTIVE_SESSIONS,
-            );
+            const sessionsToRevoke = activeSessions.slice(0, activeSessions.length - MAX_ACTIVE_SESSIONS);
 
-            await Promise.all(
-                sessionsToRevoke.map((session) =>
-                    this.authRepository.revokeRefreshSession(session.id),
-                ),
-            );
+            await Promise.all(sessionsToRevoke.map((session) => this.authRepository.revokeRefreshSession(session.id)));
         }
 
-        const refreshToken = generateRefreshToken(
-            { sub: user.id, jti: newRefreshSession.id },
-            `${refreshExpiryDays}d`,
-        );
+        const refreshToken = generateRefreshToken({ sub: user.id, jti: newRefreshSession.id }, `${refreshExpiryDays}d`);
 
         const accessToken = generateAccessToken(
             { sub: user.id, email: user.email, roles: user.roles, sid: newRefreshSession.id },

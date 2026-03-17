@@ -45,11 +45,7 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         .from(refreshSessions)
         .innerJoin(
             usersTable,
-            and(
-                eq(refreshSessions.userId, usersTable.id),
-                eq(usersTable.isActive, true),
-                isNull(usersTable.deletedAt),
-            ),
+            and(eq(refreshSessions.userId, usersTable.id), eq(usersTable.isActive, true), isNull(usersTable.deletedAt)),
         )
         .where(
             and(
@@ -131,15 +127,14 @@ export const authenticate = {
      * Middleware to require specific roles for authorization
      * @param {UserRole[]} allowedRoles - Array of roles allowed to access the route
      */
-    hasRoles:
-        (allowedRoles: UserRole[]) => async (req: Request, _res: Response, next: NextFunction) => {
-            try {
-                await handleAuth(req, allowedRoles);
-                next();
-            } catch (error) {
-                next(error);
-            }
-        },
+    hasRoles: (allowedRoles: UserRole[]) => async (req: Request, _res: Response, next: NextFunction) => {
+        try {
+            await handleAuth(req, allowedRoles);
+            next();
+        } catch (error) {
+            next(error);
+        }
+    },
 
     all: async (req: Request, res: Response, next: NextFunction) => {
         await authenticate.hasRoles(Object.values(USER_ROLES) as UserRole[])(req, res, next);

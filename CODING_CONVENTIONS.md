@@ -24,13 +24,13 @@ Repository (database access)
 
 Each layer has a single responsibility.
 
-| Layer      | Responsibility              |
-|------------|-----------------------------|
-| Router     | Define HTTP endpoints        |
+| Layer      | Responsibility                                    |
+| ---------- | ------------------------------------------------- |
+| Router     | Define HTTP endpoints                             |
 | Middleware | Request validation, authentication, preprocessing |
-| Controller | Handle HTTP request/response |
-| Service    | Business logic             |
-| Repository | Database queries        |
+| Controller | Handle HTTP request/response                      |
+| Service    | Business logic                                    |
+| Repository | Database queries                                  |
 
 ---
 
@@ -127,6 +127,7 @@ router.post('/logout', authController.logout);
 Each module is self-contained.
 
 Benefits:
+
 - Explicit dependency graph
 - Easier debugging
 - Simpler testing
@@ -171,6 +172,7 @@ auth/
 Controllers should remain thin and only handle HTTP concerns.
 
 Responsibilities:
+
 - Receive validated request data
 - Call services
 - Format responses
@@ -183,9 +185,7 @@ register = async (req: TypedRequest<typeof registerSchema>, res: Response) => {
 
     const userDto = toAuthUserDto(user);
 
-    return res
-        .status(HTTP_STATUS.CREATED)
-        .json(successResponse(userDto, 'User registered successfully'));
+    return res.status(HTTP_STATUS.CREATED).json(successResponse(userDto, 'User registered successfully'));
 };
 ```
 
@@ -207,6 +207,7 @@ async registerUser(data: RegisterDto) {
 ```
 
 Services should:
+
 - Be framework-agnostic
 - Be easily unit-testable
 - Not depend on Express
@@ -226,6 +227,7 @@ async createUser(data: CreateUserInput) {
 ```
 
 Responsibilities:
+
 - Contain database queries
 - Return data models
 - No business logic
@@ -240,21 +242,19 @@ Example schema:
 
 ```typescript
 export const registerRequestSchema = z.object({
-    body: z.object({
-        email: z.string().email(),
-        password: z.string().min(8),
-    }).strict()
+    body: z
+        .object({
+            email: z.string().email(),
+            password: z.string().min(8),
+        })
+        .strict(),
 });
 ```
 
 Routes apply validation middleware:
 
 ```typescript
-router.post(
-    '/register',
-    validateRequest(registerRequestSchema),
-    authController.register
-);
+router.post('/register', validateRequest(registerRequestSchema), authController.register);
 ```
 
 Controllers receive validated data only.
@@ -268,13 +268,11 @@ Controllers use a custom `TypedRequest` helper to infer request types from valid
 Example:
 
 ```typescript
-register = async (
-  req: TypedRequest<typeof registerRequestSchema>,
-  res: Response
-) => { }
+register = async (req: TypedRequest<typeof registerRequestSchema>, res: Response) => {};
 ```
 
 Benefits:
+
 - Schema-driven typing
 - No duplicate DTO definitions
 - Strong TypeScript inference
@@ -288,16 +286,16 @@ All successful responses use a consistent format.
 Example:
 
 ```typescript
-successResponse(data, message)
+successResponse(data, message);
 ```
 
 Example output:
 
 ```json
 {
-  "success": true,
-  "message": "User registered successfully",
-  "data": {}
+    "success": true,
+    "message": "User registered successfully",
+    "data": {}
 }
 ```
 
@@ -337,14 +335,14 @@ This prevents architectural drift.
 
 ## 12. Naming Conventions
 
-| Component          | Convention          |
-|--------------------|---------------------|
-| Controllers        | auth.controller.ts  |
-| Services           | auth.service.ts     |
-| Repositories       | auth.repository.ts  |
-| Schemas            | auth.validation.ts  |
-| DTOs               | auth.dto.ts         |
-| Module composition | auth.module.ts      |
+| Component          | Convention         |
+| ------------------ | ------------------ |
+| Controllers        | auth.controller.ts |
+| Services           | auth.service.ts    |
+| Repositories       | auth.repository.ts |
+| Schemas            | auth.validation.ts |
+| DTOs               | auth.dto.ts        |
+| Module composition | auth.module.ts     |
 
 ---
 
@@ -391,6 +389,15 @@ Module names should represent logical feature modules, not file names.
  * @module auth/repositories
  */
 ```
+
+### Documentation Rules
+
+- **Controllers:** 1-line doc max per method. Focus on high-level intent.
+    - _Example:_ `/** Authenticate user and issue tokens */`
+- **Services:** Short doc only for complex methods (focusing on high-signal business logic).
+    - _Example:_ `/** Rotates tokens by atomically consuming the old session and creating a new one */`
+- **Repositories:** Minimal docs, only for complex queries or multi-step operations.
+    - _Example:_ `/** Atomically marks session as revoked and returns it if it was active */`
 
 ### DTOs
 
@@ -489,6 +496,7 @@ router → middleware → controller → service
 ## 16. Core Principles
 
 The project follows these core principles:
+
 - Single Responsibility Principle
 - Explicit dependencies
 - Feature-based modular design
@@ -501,6 +509,7 @@ The project follows these core principles:
 ## Summary
 
 Key architectural decisions:
+
 - Feature-based modules
 - Manual dependency injection
 - Zod validation middleware

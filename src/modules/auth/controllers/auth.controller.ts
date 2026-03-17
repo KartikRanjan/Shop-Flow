@@ -27,8 +27,7 @@ export default class AuthController {
 
     /** Authenticate user and issue tokens */
     login = async (req: TypedRequest<typeof loginRequestSchema>, res: Response) => {
-        const ip =
-            (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.ip;
+        const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.ip;
         const userAgent = req.headers['user-agent'];
 
         const { user, accessToken, refreshToken } = await this.authService.loginUser({
@@ -62,8 +61,7 @@ export default class AuthController {
             });
         }
 
-        const { accessToken, refreshToken: newRefreshToken } =
-            await this.authService.refreshTokens(refreshToken);
+        const { accessToken, refreshToken: newRefreshToken } = await this.authService.refreshTokens(refreshToken);
 
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
@@ -73,9 +71,7 @@ export default class AuthController {
             maxAge: Number(env.REFRESH_TOKEN_EXPIRES_IN_DAYS) * 24 * 60 * 60 * 1000,
         });
 
-        return res
-            .status(HTTP_STATUS.OK)
-            .json(successResponse({ accessToken }, 'Tokens refreshed successfully'));
+        return res.status(HTTP_STATUS.OK).json(successResponse({ accessToken }, 'Tokens refreshed successfully'));
     };
 
     /** Revoke current session and clear cookies */
@@ -118,8 +114,6 @@ export default class AuthController {
     /** Retrieve all active sessions for the user */
     getActiveSessions = async (req: Request, res: Response) => {
         const sessions = await this.authService.getActiveSessions(req.user!.id);
-        return res
-            .status(HTTP_STATUS.OK)
-            .json(successResponse(sessions, 'Active sessions retrieved successfully'));
+        return res.status(HTTP_STATUS.OK).json(successResponse(sessions, 'Active sessions retrieved successfully'));
     };
 }

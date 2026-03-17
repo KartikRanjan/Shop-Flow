@@ -31,10 +31,7 @@ export interface ErrorResponse {
  * @example
  * return res.status(201).json(successResponse(user, 'User registered'));
  */
-export const successResponse = <T = unknown>(
-    data: T,
-    message = 'Operation successful',
-): SuccessResponse<T> => ({
+export const successResponse = <T = unknown>(data: T, message = 'Operation successful'): SuccessResponse<T> => ({
     success: true,
     message,
     data,

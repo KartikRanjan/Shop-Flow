@@ -13,19 +13,12 @@ import { ERROR_CODE, HTTP_STATUS } from '@constants';
 import { logger } from '@infrastructure/logger';
 import { env } from '@config/env';
 
-export const errorHandler = (
-    err: Error | AppError,
-    req: Request,
-    res: Response,
-    next: NextFunction,
-) => {
+export const errorHandler = (err: Error | AppError, req: Request, res: Response, next: NextFunction) => {
     // Known operational error — use structured AppError fields
     if (err instanceof AppError) {
         return res
             .status(err.statusCode)
-            .json(
-                errorResponse(err.message, err.errorCode, err.details ? [err.details] : undefined),
-            );
+            .json(errorResponse(err.message, err.errorCode, err.details ? [err.details] : undefined));
     }
 
     // Unexpected / programming error — log full stack, return generic 500
@@ -43,10 +36,7 @@ export const errorHandler = (
         'Unhandled error',
     );
 
-    const message =
-        env.NODE_ENV === 'production'
-            ? 'Internal Server Error'
-            : err.message || 'Internal Server Error';
+    const message = env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message || 'Internal Server Error';
 
     const stack = env.NODE_ENV === 'production' ? undefined : err.stack;
 

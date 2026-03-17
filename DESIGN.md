@@ -7,6 +7,7 @@ This document outlines the high-level technical design for the **ShopFlow E-Comm
 The platform follows a **Hexagonal (Ports and Adapters)** approach implemented within a **Modular Architecture**. While Express is minimalist, we enforce enterprise standards through dependency injection and strict layering.
 
 ### Core Principles
+
 1.  **Strict Type Safety:** Leveraging TypeScript's advanced type system for compile-time safety across all layers.
 2.  **Dependency Inversion:** Core logic depends on abstractions. We use **Manual Dependency Injection** to manage component lifecycles and decouple implementations.
 3.  **Event-Driven Evolution:** Side effects are handled asynchronously using a robust distributed task queue.
@@ -17,20 +18,21 @@ The platform follows a **Hexagonal (Ports and Adapters)** approach implemented w
 
 ## 2. Technology Stack
 
-| Component | Technology | Why it was chosen |
-| :--- | :--- | :--- |
-| **Language** | **TypeScript 5.x** | Static typing and modern ESM support for robust backend development. |
-| **Framework** | **Express.js** | Minimalist, flexible, and the most widely adopted Node.js framework. |
-| **DI Strategy** | **Manual Injection** | Explicit dependency management through constructors and a centralized composition root, avoiding magic and improving clarity. |
-| **ORM** | **Drizzle ORM** | Lightweight, type-safe SQL query builder with zero-overhead abstractions and SQL-like syntax. |
-| **Database** | **PostgreSQL** | Reliable relational storage with excellent JSONB support. |
-| **Task Queue** | **BullMQ (Redis)** | Professional-grade distributed task queue for retries and delayed jobs. |
-| **Authentication** | **Custom JWT middleware** | Zero-dependency token verification; no Passport.js abstraction layer needed. |
-| **Hashing** | **Argon2** | Modern, winner of the Password Hashing Competition, superior to bcrypt. |
-| **Token Management** | **jsonwebtoken** | Industry standard for stateless session management via JWT. |
-| **Cookie Handling** | **cookie-parser** | Parses HTTP-only cookies for secure refresh token transport. |
-| **Validation** | **Zod** | TypeScript-first schema declaration and validation. |
-| **Logging** | **Pino** | High-performance, low-overhead structured logger. |
+| Component            | Technology                | Why it was chosen                                                                                                             |
+| :------------------- | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Language**         | **TypeScript 5.x**        | Static typing and modern ESM support for robust backend development.                                                          |
+| **Framework**        | **Express.js**            | Minimalist, flexible, and the most widely adopted Node.js framework.                                                          |
+| **DI Strategy**      | **Manual Injection**      | Explicit dependency management through constructors and a centralized composition root, avoiding magic and improving clarity. |
+| **ORM**              | **Drizzle ORM**           | Lightweight, type-safe SQL query builder with zero-overhead abstractions and SQL-like syntax.                                 |
+| **Database**         | **PostgreSQL**            | Reliable relational storage with excellent JSONB support.                                                                     |
+| **Cache / Session**  | **Redis**                 | Fast in-memory store for session revocation (blacklisting) and distributed tasks.                                             |
+| **Task Queue**       | **BullMQ (Redis)**        | Professional-grade distributed task queue for retries and delayed jobs.                                                       |
+| **Authentication**   | **Custom JWT middleware** | Zero-dependency token verification; no Passport.js abstraction layer needed.                                                  |
+| **Hashing**          | **Argon2**                | Modern, winner of the Password Hashing Competition, superior to bcrypt.                                                       |
+| **Token Management** | **jsonwebtoken**          | Industry standard for stateless session management via JWT.                                                                   |
+| **Cookie Handling**  | **cookie-parser**         | Parses HTTP-only cookies for secure refresh token transport.                                                                  |
+| **Validation**       | **Zod**                   | TypeScript-first schema declaration and validation.                                                                           |
+| **Logging**          | **Pino**                  | High-performance, low-overhead structured logger.                                                                             |
 
 ---
 
@@ -39,47 +41,66 @@ The platform follows a **Hexagonal (Ports and Adapters)** approach implemented w
 The application is structured into logical modules, each following a layered internal structure:
 
 1.  **Presentation Layer (Adapters - Inbound):**
-    *   **Responsibility:** Handle HTTP requests, routing, and input validation.
-    *   **Components:** Routers, Controllers, Middlewares (Auth, Error Handling).
-    *   **Packages:** `express`, `zod`.
+    - **Responsibility:** Handle HTTP requests, routing, and input validation.
+    - **Components:** Routers, Controllers, Middlewares (Auth, Error Handling).
+    - **Packages:** `express`, `zod`.
 
 2.  **Application Layer (Use Cases):**
-    *   **Responsibility:** Orchestrate business flows. It coordinates between the Domain layer and Infrastructure adapters.
-    *   **Components:** Service Classes (injected into controllers).
+    - **Responsibility:** Orchestrate business flows. It coordinates between the Domain layer and Infrastructure adapters.
+    - **Components:** Service Classes (injected into controllers).
 
 3.  **Domain Layer (Core Logic):**
-    *   **Responsibility:** Pure business logic and entities.
-    *   **Components:** Entities, Value Objects, Domain Services.
-    *   **Constraint:** Zero dependencies on external frameworks or ORMs.
+    - **Responsibility:** Pure business logic and entities.
+    - **Components:** Entities, Value Objects, Domain Services.
+    - **Constraint:** Zero dependencies on external frameworks or ORMs.
 
 4.  **Infrastructure Layer (Adapters - Outbound):**
-    *   **Responsibility:** Implementation of persistence and external API clients.
-    *   **Components:** Drizzle Repositories, BullMQ Workers, Mailer implementations.
-    *   **Packages:** `drizzle-orm`, `bullmq`.
+    - **Responsibility:** Implementation of persistence and external API clients.
+    - **Components:** Drizzle Repositories, BullMQ Workers, Mailer implementations.
+    - **Packages:** `drizzle-orm`, `bullmq`.
 
 ---
 
 ## 4. Business Modules
 
 ### 4.1 Users
-Manages customer accounts, seller accounts, and admin accounts. Supports RBAC with roles: `CUSTOMER`, `SELLER`, `ADMIN`.
+
+Manages customer accounts, seller accounts, and admin accounts. Supports RBAC with a **roles array** (PostgreSQL ENUM array), allowing users to hold multiple roles simultaneously (e.g., `['user', 'seller']`). Roles: `user`, `seller`, `admin`.
 
 ### 4.2 Auth
-JWT-based stateless authentication with **dual-token refresh rotation** — no Passport.js. Access tokens are short-lived JWTs (15 min) delivered via `Authorization: Bearer`. Refresh tokens are long-lived opaque JWTs (30 days) stored in HTTP-only cookies and rotated on every use. Password hashing uses **Argon2id**.
+
+JWT-based stateless authentication with **dual-token refresh rotation** — no Passport.js. Access tokens are short-lived JWTs (15 min) delivered via `Authorization: Bearer`. Refresh tokens are long-lived opaque JWTs (30 days) stored in HTTP-only cookies and rotated on every use.
+
+**Session Management Features:**
+
+- **Refresh Session Store:** Active sessions are stored in the `refresh_sessions` table.
+- **Fast Revocation (Redis):** Logged-out or rotated sessions are cached in Redis for high-speed revocation checks in the authentication middleware.
+- **Database Fallback:** PostgreSQL serves as the persistent source of truth for all sessions, providing a fallback for the revocation cache.
+- **Token Rotation:** Every `/refresh` call consumes (revokes) the old session and issues a new one atomically, mitigating token theft risks.
+- **Grace Period:** Implements a **30-second grace period** for revoked sessions to allow in-flight requests during token rotation to complete without error.
+- **Session Limits:** Enforces a maximum of **5 active sessions** per user. When the limit is exceeded, the oldest expiring session is automatically revoked.
+- **Active Session Visibility:** Users can view their active sessions, including device, IP, and timestamp information.
+- **Flexible Revocation:** Supports both single session logout (revoking current token) and global logout (revoking all user sessions).
+- **Security:** Password hashing uses **Argon2id**.
 
 ### 4.3 Categories
+
 Hierarchical product categorization. Categories can have a parent category (e.g., Electronics > Phones).
 
 ### 4.4 Products
+
 Core catalog management. Products belong to a category and contain pricing, inventory, and media metadata.
 
 ### 4.5 Sellers
+
 Manages merchant/vendor profiles. A seller is always a registered user (`SELLER` role). Seller-specific data (store name, description, payout info) lives in a dedicated `sellers` table linked to `users.id` via a `userId` foreign key. This keeps authentication concerns in the `users` table while isolating seller domain data.
 
 ### 4.6 Orders
+
 Manages the full order lifecycle: `PENDING → PAID → PROCESSING → SHIPPED → DELIVERED → CANCELLED`.
 
 ### 4.7 Payments
+
 Records and processes payment intents. Integrates with external payment providers (e.g., Stripe). Statuses: `PENDING → COMPLETED → FAILED → REFUNDED`.
 
 ---
@@ -126,16 +147,18 @@ The system employs the **Transactional Outbox Pattern** to ensure atomicity betw
 We use **BullMQ** for robust background processing, providing isolation from the main HTTP thread.
 
 ### Key Features
-*   **Retries with Backoff:** Configurable exponential backoff for failing tasks.
-*   **Observability:** Jobs are tracked in Redis.
-*   **Isolation:** Workers run as separate processes or threads.
+
+- **Retries with Backoff:** Configurable exponential backoff for failing tasks.
+- **Observability:** Jobs are tracked in Redis.
+- **Isolation:** Workers run as separate processes or threads.
 
 ### Job Queues
-| Queue | Trigger | Worker Action |
-| :--- | :--- | :--- |
-| `order.placed` | Order confirmed | Send confirmation email, reduce inventory |
-| `payment.completed` | Payment webhook | Advance order to `PROCESSING` |
-| `payment.failed` | Payment webhook | Notify customer, restore cart |
+
+| Queue               | Trigger         | Worker Action                             |
+| :------------------ | :-------------- | :---------------------------------------- |
+| `order.placed`      | Order confirmed | Send confirmation email, reduce inventory |
+| `payment.completed` | Payment webhook | Advance order to `PROCESSING`             |
+| `payment.failed`    | Payment webhook | Notify customer, restore cart             |
 
 ---
 
@@ -144,142 +167,156 @@ We use **BullMQ** for robust background processing, providing isolation from the
 Schemas are **co-located per module**. Each module defines its own table(s). The infrastructure barrel file re-exports everything for `drizzle-kit` and the runtime Drizzle client.
 
 ### `src/modules/users/users.model.ts`
+
 ```typescript
-export const users = pgTable('users', {
-  id:           uuid('id').defaultRandom().primaryKey(),
-  email:        varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  role:         varchar('role', { length: 50 }).notNull().default('CUSTOMER'), // CUSTOMER | SELLER | ADMIN
-  createdAt:    timestamp('created_at').defaultNow().notNull(),
-  updatedAt:    timestamp('updated_at').defaultNow().notNull(),
-  deletedAt:    timestamp('deleted_at'),    // NULL = active; soft-delete tombstone
+export const usersTable = pgTable('users', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    email: varchar('email', { length: 255 }).notNull().unique(),
+    phoneNumber: varchar('phone_number', { length: 20 }).unique(),
+    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    roles: userRoleEnum('roles').array().notNull().default([USER_ROLES.USER]),
+    isActive: boolean('is_active').notNull().default(true),
+    isEmailVerified: boolean('is_email_verified').notNull().default(false),
+    isPhoneVerified: boolean('is_phone_verified').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 ```
 
 ### `src/modules/auth/auth.model.ts`
+
 ```typescript
-// Refresh token store — co-located with the auth module
-export const refreshTokens = pgTable('refresh_tokens', {
-  id:        uuid('id').defaultRandom().primaryKey(),
-  userId:    uuid('user_id').notNull(),               // FK → users.id
-  tokenHash: text('token_hash').notNull().unique(),   // SHA-256 of raw token (never store raw)
-  expiresAt: timestamp('expires_at').notNull(),
-  revokedAt: timestamp('revoked_at'),                 // NULL = active; set on logout / rotation
-  // Device context — enables active-session view and per-device logout
-  device:    varchar('device', { length: 255 }),      // e.g. "Chrome / macOS"
-  ip:        varchar('ip', { length: 45 }),           // IPv4 or IPv6
-  userAgent: text('user_agent'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+// Refresh session store — co-located with the auth module
+// The JWT `jti` claim maps to `id` for session lookup and rotation
+export const refreshSessions = pgTable('refresh_sessions', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+        .notNull()
+        .references(() => usersTable.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    device: varchar('device', { length: 255 }),
+    ip: varchar('ip', { length: 255 }),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // Zod request validation
 export const registerSchema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(8).max(128),
-  role:     z.enum(['ADMIN', 'SELLER', 'CUSTOMER']).optional().default('CUSTOMER'),
+    email: z.string().email(),
+    password: z.string().min(8).max(128),
+    role: z.enum(['ADMIN', 'SELLER', 'CUSTOMER']).optional().default('CUSTOMER'),
 });
 
 export const loginSchema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(1),
+    email: z.string().email(),
+    password: z.string().min(1),
 });
 ```
 
 ### `src/modules/categories/categories.model.ts`
+
 ```typescript
 export const categories = pgTable('categories', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 100 }).notNull(),
-  slug: varchar('slug', { length: 150 }).notNull().unique(),
-  parentId: uuid('parent_id'), // self-referencing FK wired in barrel relations()
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 100 }).notNull(),
+    slug: varchar('slug', { length: 150 }).notNull().unique(),
+    parentId: uuid('parent_id'), // self-referencing FK wired in barrel relations()
+    createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 ```
 
 ### `src/modules/sellers/sellers.model.ts`
+
 ```typescript
 export const sellers = pgTable('sellers', {
-  id:          uuid('id').defaultRandom().primaryKey(),
-  userId:      uuid('user_id').notNull().unique(),     // FK → users.id (1-to-1)
-  storeName:   varchar('store_name', { length: 255 }).notNull().unique(),
-  slug:        varchar('slug', { length: 300 }).notNull().unique(),
-  description: text('description'),
-  isVerified:  boolean('is_verified').notNull().default(false),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
-  deletedAt:   timestamp('deleted_at'),    // NULL = active; soft-delete tombstone
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull().unique(), // FK → users.id (1-to-1)
+    storeName: varchar('store_name', { length: 255 }).notNull().unique(),
+    slug: varchar('slug', { length: 300 }).notNull().unique(),
+    description: text('description'),
+    isVerified: boolean('is_verified').notNull().default(false),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at'), // NULL = active; soft-delete tombstone
 });
 ```
 
 > A seller **is** a user with `role = 'SELLER'`. The `sellers` table stores only domain-specific data (store profile). Identity and authentication remain in `users`.
 
 ### `src/modules/products/products.model.ts`
+
 ```typescript
 export const products = pgTable('products', {
-  id:          uuid('id').defaultRandom().primaryKey(),
-  name:        varchar('name', { length: 255 }).notNull(),
-  slug:        varchar('slug', { length: 300 }).notNull().unique(),
-  description: text('description'),
-  price:       numeric('price', { precision: 10, scale: 2 }).notNull(),
-  stock:       integer('stock').notNull().default(0),
-  categoryId:  uuid('category_id'),                   // FK wired in barrel relations()
-  sellerId:    uuid('seller_id').notNull(),            // FK → sellers.id
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
-  deletedAt:   timestamp('deleted_at'),    // NULL = active; soft-delete tombstone
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 255 }).notNull(),
+    slug: varchar('slug', { length: 300 }).notNull().unique(),
+    description: text('description'),
+    price: numeric('price', { precision: 10, scale: 2 }).notNull(),
+    stock: integer('stock').notNull().default(0),
+    categoryId: uuid('category_id'), // FK wired in barrel relations()
+    sellerId: uuid('seller_id').notNull(), // FK → sellers.id
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at'), // NULL = active; soft-delete tombstone
 });
 
 export const productImages = pgTable('product_images', {
-  id:        uuid('id').defaultRandom().primaryKey(),
-  productId: uuid('product_id').notNull(),            // FK → products.id
-  url:       text('url').notNull(),
-  position:  integer('position').notNull().default(0), // display order (0 = primary image)
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+    id: uuid('id').defaultRandom().primaryKey(),
+    productId: uuid('product_id').notNull(), // FK → products.id
+    url: text('url').notNull(),
+    position: integer('position').notNull().default(0), // display order (0 = primary image)
+    createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 ```
 
 ### `src/modules/orders/orders.model.ts`
+
 ```typescript
 export const orders = pgTable('orders', {
-  id:          uuid('id').defaultRandom().primaryKey(),
-  userId:      uuid('user_id').notNull(),   // FK → users.id (buyer), wired in barrel
-  sellerId:    uuid('seller_id'),           // FK → sellers.id; set when order targets a single seller
-  status:      varchar('status', { length: 50 }).notNull().default('PENDING'),
-  // PENDING | PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
-  totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull(), // FK → users.id (buyer), wired in barrel
+    sellerId: uuid('seller_id'), // FK → sellers.id; set when order targets a single seller
+    status: varchar('status', { length: 50 }).notNull().default('PENDING'),
+    // PENDING | PAID | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+    totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const orderItems = pgTable('order_items', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  orderId: uuid('order_id').notNull(),
-  productId: uuid('product_id').notNull(),
-  quantity: integer('quantity').notNull(),
-  unitPrice: numeric('unit_price', { precision: 10, scale: 2 }).notNull(),
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPrice: numeric('unit_price', { precision: 10, scale: 2 }).notNull(),
 });
 ```
 
 ### `src/modules/payments/payments.model.ts`
+
 ```typescript
 export const payments = pgTable('payments', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  orderId: uuid('order_id').notNull().unique(),
-  provider: varchar('provider', { length: 50 }).notNull().default('stripe'),
-  providerPaymentId: varchar('provider_payment_id', { length: 255 }),
-  status: varchar('status', { length: 50 }).notNull().default('PENDING'),
-  // PENDING | COMPLETED | FAILED | REFUNDED
-  amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id').notNull().unique(),
+    provider: varchar('provider', { length: 50 }).notNull().default('stripe'),
+    providerPaymentId: varchar('provider_payment_id', { length: 255 }),
+    status: varchar('status', { length: 50 }).notNull().default('PENDING'),
+    // PENDING | COMPLETED | FAILED | REFUNDED
+    amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 ```
 
 ### `src/infrastructure/database/schema.ts` (barrel + cross-table relations)
+
 ```typescript
 // Re-export all module models
 export * from '../../modules/users/users.model';
-export * from '../../modules/auth/auth.model';       // includes refreshTokens table
+export * from '../../modules/auth/auth.model'; // includes refreshTokens table
 export * from '../../modules/categories/categories.model';
 export * from '../../modules/sellers/sellers.model';
 export * from '../../modules/products/products.model';
@@ -288,37 +325,37 @@ export * from '../../modules/payments/payments.model';
 
 // Cross-table relations defined here to avoid circular imports
 export const usersRelations = relations(users, ({ one, many }) => ({
-  orders:        many(orders),
-  refreshTokens: many(refreshTokens),
-  seller:        one(sellers, { fields: [users.id], references: [sellers.userId] }),
+    orders: many(orders),
+    refreshTokens: many(refreshTokens),
+    seller: one(sellers, { fields: [users.id], references: [sellers.userId] }),
 }));
 
 export const sellersRelations = relations(sellers, ({ one, many }) => ({
-  user:     one(users,  { fields: [sellers.userId], references: [users.id] }),
-  products: many(products),
-  orders:   many(orders),
+    user: one(users, { fields: [sellers.userId], references: [users.id] }),
+    products: many(products),
+    orders: many(orders),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
-  seller:     one(sellers,    { fields: [products.sellerId],   references: [sellers.id] }),
-  category:   one(categories, { fields: [products.categoryId], references: [categories.id] }),
-  orderItems: many(orderItems),
-  images:     many(productImages),
+    seller: one(sellers, { fields: [products.sellerId], references: [sellers.id] }),
+    category: one(categories, { fields: [products.categoryId], references: [categories.id] }),
+    orderItems: many(orderItems),
+    images: many(productImages),
 }));
 
 export const productImagesRelations = relations(productImages, ({ one }) => ({
-  product: one(products, { fields: [productImages.productId], references: [products.id] }),
+    product: one(products, { fields: [productImages.productId], references: [products.id] }),
 }));
 
 // ... (orders, payments, order_items relations unchanged)
 
 // Outbox events (infrastructure-owned, defined here directly)
 export const outboxEvents = pgTable('outbox_events', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  eventType: varchar('event_type', { length: 100 }).notNull(),
-  payload: jsonb('payload').notNull(),
-  status: varchar('status', { length: 50 }).notNull().default('PENDING'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventType: varchar('event_type', { length: 100 }).notNull(),
+    payload: jsonb('payload').notNull(),
+    status: varchar('status', { length: 50 }).notNull().default('PENDING'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 ```
 
@@ -330,23 +367,24 @@ The platform implements a stateless **dual-token JWT** authentication strategy w
 
 ### Token Architecture
 
-| Token | Type | Lifetime | Storage | Transport |
-| :--- | :--- | :--- | :--- | :--- |
-| **Access Token** | Signed JWT (`HS256`) | 15 minutes | Client memory | `Authorization: Bearer <token>` header |
-| **Refresh Token** | Signed JWT (`HS256`) carrying `jti` | 30 days | HTTP-only cookie (path-scoped) | Cookie on `/api/v1/auth/refresh` only |
+| Token             | Type                                | Lifetime   | Storage                        | Transport                              |
+| :---------------- | :---------------------------------- | :--------- | :----------------------------- | :------------------------------------- |
+| **Access Token**  | Signed JWT (`HS256`)                | 15 minutes | Client memory                  | `Authorization: Bearer <token>` header |
+| **Refresh Token** | Signed JWT (`HS256`) carrying `jti` | 30 days    | HTTP-only cookie (path-scoped) | Cookie on `/api/v1/auth/refresh` only  |
 
 ### Key Security Controls
 
-| Control | Mechanism |
-| :--- | :--- |
-| **Password hashing** | Argon2id — 64 MiB memory cost, 3 iterations, parallelism 1 |
-| **Token signing** | Separate `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` env vars |
-| **Refresh token storage** | Only the SHA-256 hash of the `jti` is persisted — raw value never touches the DB |
-| **Token rotation** | Every `/refresh` call revokes the old token and issues a new one atomically |
-| **Revocation** | `revokedAt` timestamp on `refresh_tokens` row; logout + logout-all both supported |
-| **Cookie scope** | `httpOnly`, `secure` (production), `sameSite: strict`, path restricted to `/api/v1/auth/refresh` |
-| **Rate limiting** | `express-rate-limit` on `/login` and `/register` — 10 attempts / 15 min per IP |
-| **RBAC** | `requireRole('ADMIN' \| 'SELLER' \| 'CUSTOMER')` middleware chained after `requireAuth` |
+| Control                   | Mechanism                                                                                                                    |
+| :------------------------ | :--------------------------------------------------------------------------------------------------------------------------- |
+| **Password hashing**      | Argon2id — 64 MiB memory cost, 3 iterations, parallelism 1                                                                   |
+| **Token signing**         | Separate `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` env vars                                                                 |
+| **Refresh token storage** | Each refresh JWT contains a `jti` that references the `refresh_sessions.id` row; the raw token itself is never stored        |
+| **Session Revocation**    | Revoked sessions are cached in **Redis** for fast lookups in middleware, with **PostgreSQL** as a persistent fallback source |
+| **Token rotation**        | Every `/refresh` call revokes the old session and issues a new one atomically                                                |
+| **Revocation**            | `revokedAt` timestamp on `refresh_sessions` row; logout + logout-all both supported                                          |
+| **Cookie scope**          | `httpOnly`, `secure` (production), `sameSite: strict`, path restricted to `/api/v1/auth`                                     |
+| **Rate limiting**         | `express-rate-limit` on `/login` and `/register` — 10 attempts / 15 min per IP                                               |
+| **RBAC**                  | `requireRole('ADMIN' \| 'SELLER' \| 'CUSTOMER')` middleware chained after `requireAuth`                                      |
 
 ### Auth Flow
 
@@ -363,11 +401,11 @@ LOGIN
              generateAccessToken()           generateRefreshToken()
              (JWT, 15 min)                   (JWT with jti, 30 days)
                     │                                   │
-                    │                        INSERT refresh_tokens
-                    │                        (tokenHash = SHA256(jti))
+                    │                        INSERT refresh_sessions
+                    │                        (id referenced by JWT `jti`)
                     │                                   │
   Response: { accessToken } ◄────────────────────────────┘
-  Set-Cookie: refresh_token=<jwt> (httpOnly, path=/api/v1/auth/refresh)
+  Set-Cookie: refresh_token=<jwt> (httpOnly, path=/api/v1/auth)
 
 AUTHENTICATED REQUEST
   Client ──GET /orders Authorization: Bearer <accessToken>──►
@@ -384,33 +422,34 @@ TOKEN REFRESH
                                     │
                     jwt.verify(refreshToken, REFRESH_SECRET)
                                     │
-                    DB: UPDATE refresh_tokens SET revokedAt=now
-                        WHERE tokenHash=SHA256(jti) AND revokedAt IS NULL
+                    DB: UPDATE refresh_sessions SET revokedAt=now
+                        WHERE id = <jti> AND revokedAt IS NULL
                                     │
-                    DB: INSERT new refresh_tokens row
+                    DB: INSERT new refresh_sessions row
                                     │
   Response: { accessToken } + Set-Cookie: new refresh_token
 
 LOGOUT ALL DEVICES
-  Client ──POST /auth/logout-all Authorization: Bearer <accessToken>──►
+  Client ──DELETE /auth/logout-all Authorization: Bearer <accessToken>──►
                                     │
                             requireAuth (validates access token)
                                     │
-                    DB: UPDATE refresh_tokens SET revokedAt=now
+                    DB: UPDATE refresh_sessions SET revokedAt=now
                         WHERE userId=? AND revokedAt IS NULL
                                     │
-  Response: 204 No Content + Clear-Cookie
+  Response: 200 OK + Clear-Cookie
 ```
 
 ### Required Packages
 
 **Runtime dependencies:**
-*   `jsonwebtoken`, `@types/jsonwebtoken`
-*   `argon2`
-*   `cookie-parser`, `@types/cookie-parser`
-*   `uuid`, `@types/uuid`
-*   `zod`
-*   `express-rate-limit` (already present)
+
+- `jsonwebtoken`, `@types/jsonwebtoken`
+- `argon2`
+- `cookie-parser`, `@types/cookie-parser`
+- `uuid`, `@types/uuid`
+- `zod`
+- `express-rate-limit` (already present)
 
 ---
 
@@ -432,7 +471,7 @@ src/
 │   ├── auth/
 │   │   ├── controllers/            # register, login, refresh handlers
 │   │   ├── dto/                    # Data transfer objects mapping
-│   │   ├── models/                 # Drizzle tables (e.g., refresh_tokens)
+│   │   ├── models/                 # Drizzle tables (e.g., refresh_sessions)
 │   │   ├── repositories/           # DB queries for tokens/auth state
 │   │   ├── routes/                 # Router with rate limiting, etc.
 │   │   ├── services/               # Core auth logic and token service
@@ -450,24 +489,26 @@ src/
 │   ├── products/
 │   ├── orders/
 │   └── payments/                   # All other modules follow the same structure
-├── common/                         # Shared logic
-│   ├── constants/                  # Shared system constants 
-│   ├── errors/                     # Custom error definitions
-│   └── utils/                      # Helper functions
+├── constants/                      # Shared system constants
+├── errors/                         # Custom error definitions
+├── utils/                          # Shared helper functions (e.g., jwt.util.ts, api-response.util.ts)
+├── types/                          # Shared type definitions (pagination, typed-request, etc.)
 ├── infrastructure/                 # Infrastructure Adapters
 │   ├── database/
 │   │   ├── schema.ts               # Barrel: re-exports all module models + cross-table relations()
+│   │   ├── repositories/           # Base repository abstractions
 │   │   └── index.ts                # Drizzle client (Pool + drizzle(pool, { schema }))
 │   ├── queue/                      # BullMQ config & workers
 │   │   ├── queue.config.ts
 │   │   └── workers/
+│   └── logger/                     # Pino logger instance
 ├── middlewares/                    # Global app middlewares (error, validation, not found)
+├── routes/                         # Top-level route aggregator (mounts module routers)
 ├── config/                         # App configuration & Zod env validation
 │   └── env.ts
 ├── app.ts                          # Express app initialization (includes cookie-parser)
 └── server.ts                       # Entry point
 ```
-
 
 ### Schema Co-location Strategy
 
@@ -486,79 +527,86 @@ Cross-table `relations()` are defined in the barrel to avoid circular imports be
 ## 10. API Endpoints
 
 ### Users
-| Method | Path | Access |
-| :--- | :--- | :--- |
-| GET | `/api/v1/users` | ADMIN |
-| GET | `/api/v1/users/:id` | ADMIN / Self |
-| PATCH | `/api/v1/users/:id` | Self |
-| DELETE | `/api/v1/users/:id` | ADMIN |
+
+| Method | Path                | Access       |
+| :----- | :------------------ | :----------- |
+| GET    | `/api/v1/users`     | ADMIN        |
+| GET    | `/api/v1/users/:id` | ADMIN / Self |
+| PATCH  | `/api/v1/users/:id` | Self         |
+| DELETE | `/api/v1/users/:id` | ADMIN        |
 
 ### Auth
-| Method | Path | Access | Notes |
-| :--- | :--- | :--- | :--- |
-| POST | `/api/v1/auth/register` | Public | Rate-limited (10/15 min) |
-| POST | `/api/v1/auth/login` | Public | Rate-limited (10/15 min); records `device`, `ip`, `userAgent` |
-| POST | `/api/v1/auth/refresh` | Public (cookie) | Rotates refresh token |
-| GET  | `/api/v1/auth/sessions` | Authenticated | Lists active sessions (device/ip/createdAt) |
-| POST | `/api/v1/auth/logout` | Authenticated | Revokes current refresh token |
-| POST | `/api/v1/auth/logout-all` | Authenticated | Revokes all user refresh tokens |
+
+| Method | Path                           | Access          | Notes                                                         |
+| :----- | :----------------------------- | :-------------- | :------------------------------------------------------------ |
+| POST   | `/api/v1/auth/register`        | Public          | Rate-limited (10/15 min)                                      |
+| POST   | `/api/v1/auth/login`           | Public          | Rate-limited (10/15 min); records `device`, `ip`, `userAgent` |
+| POST   | `/api/v1/auth/refresh`         | Public (cookie) | Rotates refresh token                                         |
+| GET    | `/api/v1/auth/active-sessions` | Authenticated   | Lists active sessions (device/ip/createdAt)                   |
+| DELETE | `/api/v1/auth/logout`          | Authenticated   | Revokes current refresh token                                 |
+| DELETE | `/api/v1/auth/logout-all`      | Authenticated   | Revokes all user refresh tokens                               |
 
 ### Categories
-| Method | Path | Access |
-| :--- | :--- | :--- |
-| GET | `/api/v1/categories` | Public |
-| POST | `/api/v1/categories` | ADMIN |
-| PATCH | `/api/v1/categories/:id` | ADMIN |
-| DELETE | `/api/v1/categories/:id` | ADMIN |
+
+| Method | Path                     | Access |
+| :----- | :----------------------- | :----- |
+| GET    | `/api/v1/categories`     | Public |
+| POST   | `/api/v1/categories`     | ADMIN  |
+| PATCH  | `/api/v1/categories/:id` | ADMIN  |
+| DELETE | `/api/v1/categories/:id` | ADMIN  |
 
 ### Sellers
-| Method | Path | Access | Notes |
-| :--- | :--- | :--- | :--- |
-| POST | `/api/v1/sellers/register` | Authenticated | Upgrades user role to `SELLER` and creates `sellers` row |
-| GET | `/api/v1/sellers` | ADMIN | List all seller profiles |
-| GET | `/api/v1/sellers/:id` | Public | Public store page |
-| GET | `/api/v1/sellers/me` | SELLER | Own seller profile |
-| PATCH | `/api/v1/sellers/me` | SELLER | Update store details |
-| DELETE | `/api/v1/sellers/:id` | ADMIN | Deactivate a seller |
+
+| Method | Path                       | Access        | Notes                                                    |
+| :----- | :------------------------- | :------------ | :------------------------------------------------------- |
+| POST   | `/api/v1/sellers/register` | Authenticated | Upgrades user role to `SELLER` and creates `sellers` row |
+| GET    | `/api/v1/sellers`          | ADMIN         | List all seller profiles                                 |
+| GET    | `/api/v1/sellers/:id`      | Public        | Public store page                                        |
+| GET    | `/api/v1/sellers/me`       | SELLER        | Own seller profile                                       |
+| PATCH  | `/api/v1/sellers/me`       | SELLER        | Update store details                                     |
+| DELETE | `/api/v1/sellers/:id`      | ADMIN         | Deactivate a seller                                      |
 
 ### Products
-| Method | Path | Access | Notes |
-| :--- | :--- | :--- | :--- |
-| GET | `/api/v1/products` | Public | |
-| GET | `/api/v1/products/:id` | Public | |
-| GET | `/api/v1/sellers/:sellerId/products` | Public | Products scoped to a seller's store |
-| POST | `/api/v1/products` | SELLER / ADMIN | `sellerId` derived from `req.user.sub` for SELLER role |
-| PATCH | `/api/v1/products/:id` | SELLER (owner) / ADMIN | |
-| DELETE | `/api/v1/products/:id` | SELLER (owner) / ADMIN | |
+
+| Method | Path                                 | Access                 | Notes                                                  |
+| :----- | :----------------------------------- | :--------------------- | :----------------------------------------------------- |
+| GET    | `/api/v1/products`                   | Public                 |                                                        |
+| GET    | `/api/v1/products/:id`               | Public                 |                                                        |
+| GET    | `/api/v1/sellers/:sellerId/products` | Public                 | Products scoped to a seller's store                    |
+| POST   | `/api/v1/products`                   | SELLER / ADMIN         | `sellerId` derived from `req.user.sub` for SELLER role |
+| PATCH  | `/api/v1/products/:id`               | SELLER (owner) / ADMIN |                                                        |
+| DELETE | `/api/v1/products/:id`               | SELLER (owner) / ADMIN |                                                        |
 
 ### Orders
-| Method | Path | Access | Notes |
-| :--- | :--- | :--- | :--- |
-| GET | `/api/v1/orders` | ADMIN | |
-| GET | `/api/v1/orders/my` | Authenticated | Buyer's own orders |
-| GET | `/api/v1/orders/seller` | SELLER | Orders containing this seller's products |
-| GET | `/api/v1/orders/:id` | ADMIN / Owner | |
-| POST | `/api/v1/orders` | Authenticated | |
-| PATCH | `/api/v1/orders/:id/status` | ADMIN / SELLER | SELLER may update fulfilment sub-status only |
+
+| Method | Path                        | Access         | Notes                                        |
+| :----- | :-------------------------- | :------------- | :------------------------------------------- |
+| GET    | `/api/v1/orders`            | ADMIN          |                                              |
+| GET    | `/api/v1/orders/my`         | Authenticated  | Buyer's own orders                           |
+| GET    | `/api/v1/orders/seller`     | SELLER         | Orders containing this seller's products     |
+| GET    | `/api/v1/orders/:id`        | ADMIN / Owner  |                                              |
+| POST   | `/api/v1/orders`            | Authenticated  |                                              |
+| PATCH  | `/api/v1/orders/:id/status` | ADMIN / SELLER | SELLER may update fulfilment sub-status only |
 
 ### Payments
-| Method | Path | Access |
-| :--- | :--- | :--- |
-| POST | `/api/v1/payments` | Authenticated |
-| GET | `/api/v1/payments/:orderId` | Authenticated |
-| POST | `/api/v1/payments/webhook` | Public (provider-signed) |
+
+| Method | Path                        | Access                   |
+| :----- | :-------------------------- | :----------------------- |
+| POST   | `/api/v1/payments`          | Authenticated            |
+| GET    | `/api/v1/payments/:orderId` | Authenticated            |
+| POST   | `/api/v1/payments/webhook`  | Public (provider-signed) |
 
 ---
 
 ## 11. Development & Tooling
 
-*   **Dependency Injection:** Components are wired manually through constructors, enabling easy mocking for unit tests without a container library.
-*   **Migrations:** **Drizzle Kit** manages schema migrations (`drizzle-kit generate` / `drizzle-kit migrate`).
-*   **Documentation:** **Swagger-jsdoc** for generating OpenAPI specs from JSDoc comments.
-*   **Testing:** **Jest** for unit tests and **Supertest** for API integration tests.
+- **Dependency Injection:** Components are wired manually through constructors, enabling easy mocking for unit tests without a container library.
+- **Migrations:** **Drizzle Kit** manages schema migrations (`drizzle-kit generate` / `drizzle-kit migrate`).
+- **Documentation:** **Swagger-jsdoc** for generating OpenAPI specs from JSDoc comments.
+- **Testing:** **Jest** for unit tests and **Supertest** for API integration tests.
 
 ## 12. Future Scalability
 
-*   **Cluster Mode:** Use Node.js `cluster` module or **PM2** to scale across CPU cores.
-*   **Caching:** Redis-based caching middleware for GET requests.
-*   **Security:** Integrated `helmet`, `cors`, and `express-rate-limit`.
+- **Cluster Mode:** Use Node.js `cluster` module or **PM2** to scale across CPU cores.
+- **Caching:** Redis-based caching middleware for GET requests.
+- **Security:** Integrated `helmet`, `cors`, and `express-rate-limit`.

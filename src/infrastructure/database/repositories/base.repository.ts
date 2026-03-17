@@ -17,9 +17,7 @@ export class BaseRepository {
     }
 
     protected sanitize<T extends object>(data: T): Partial<T> {
-        return Object.fromEntries(
-            Object.entries(data).filter(([_, v]) => v !== undefined),
-        ) as Partial<T>;
+        return Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined)) as Partial<T>;
     }
 
     protected buildPagination(
@@ -39,12 +37,7 @@ export class BaseRepository {
         return { deletedAt: this.now() };
     }
 
-    protected buildPaginatedResponse<T>(
-        data: T[],
-        total: number,
-        page: number,
-        limit: number,
-    ): PaginatedResult<T> {
+    protected buildPaginatedResponse<T>(data: T[], total: number, page: number, limit: number): PaginatedResult<T> {
         const safeLimit = Math.max(1, limit);
 
         return {

@@ -8,13 +8,7 @@ import type { Database } from '@infrastructure/database';
 import { refreshSessions, users } from '@infrastructure/database/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { BaseRepository } from '@infrastructure/database/repositories/base.repository';
-import type {
-    IAuthRepository,
-    RefreshToken,
-    RefreshTokenInput,
-    RegisterInput,
-    User,
-} from '../types';
+import type { IAuthRepository, RefreshToken, RefreshTokenInput, RegisterInput, User } from '../types';
 
 export default class AuthRepository extends BaseRepository implements IAuthRepository {
     constructor(private readonly db: Database) {
@@ -50,13 +44,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         return user ?? null;
     }
 
-    async createRefreshSession({
-        userId,
-        device,
-        ip,
-        userAgent,
-        expiresAt,
-    }: RefreshTokenInput): Promise<RefreshToken> {
+    async createRefreshSession({ userId, device, ip, userAgent, expiresAt }: RefreshTokenInput): Promise<RefreshToken> {
         const newRefreshToken = await this.db
             .insert(refreshSessions)
             .values({
@@ -91,10 +79,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
     }
 
     async revokeRefreshSession(jti: string): Promise<void> {
-        await this.db
-            .update(refreshSessions)
-            .set({ revokedAt: new Date() })
-            .where(eq(refreshSessions.id, jti));
+        await this.db.update(refreshSessions).set({ revokedAt: new Date() }).where(eq(refreshSessions.id, jti));
     }
 
     async revokeAllUserSessions(userId: string): Promise<void> {
