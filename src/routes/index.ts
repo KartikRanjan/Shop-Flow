@@ -8,11 +8,13 @@
 
 import { Router } from 'express';
 import { authRoutes } from '@modules/auth';
+import { userRoutes } from '@modules/users';
 
 const router = Router();
 
 // Register module routes
 router.use('/auth', authRoutes);
+router.use('/user', userRoutes);
 
 // Add more modules here as they are developed
 // router.use('/products', productRoutes);
