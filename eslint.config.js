@@ -35,10 +35,30 @@ export default [
             },
 
             parserOptions: {
-                project: true,
+                project: './tsconfig.eslint.json',
                 tsconfigRootDir: import.meta.dirname,
             },
         },
+    },
+
+    {
+        files: ['**/*.test.ts', '**/*.spec.ts'],
+
+        languageOptions: {
+            globals: {
+                ...globals.jest,
+            },
+        },
+
+        rules: {
+            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/unbound-method': 'off',
+        },
+    },
+
+    {
+        files: ['**/*.ts'],
+        ignores: ['**/*.test.ts', '**/*.spec.ts'],
 
         rules: {
             /*
