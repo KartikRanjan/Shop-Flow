@@ -41,7 +41,18 @@ export const validateRequest = <S extends RequestSchemaShape>(schema: ZodType<S>
         }
 
         if (validated.query !== undefined) {
-            req.query = validated.query as typeof req.query;
+            // Create a new query object with the validated properties
+            const validatedQuery = validated.query as Record<string, unknown>;
+
+            // Clear existing query parameters
+            Object.keys(req.query).forEach((key) => {
+                delete req.query[key];
+            });
+
+            // Add the validated properties
+            Object.keys(validatedQuery).forEach((key) => {
+                (req.query as Record<string, unknown>)[key] = validatedQuery[key];
+            });
         }
 
         if (validated.params !== undefined) {

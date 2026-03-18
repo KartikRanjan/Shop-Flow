@@ -36,6 +36,6 @@
             "xpress-toolkit/swagger": ["node_modules/xpress-toolkit/dist/cjs/swagger/index.d.ts"]
         }
     },
-    "include": ["src/**/*", "server.js"],
+    "include": ["src/**/*"],
     "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
