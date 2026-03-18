@@ -18,7 +18,7 @@ export const errorHandler = (err: Error | AppError, req: Request, res: Response,
     if (err instanceof AppError) {
         return res
             .status(err.statusCode)
-            .json(errorResponse(err.message, err.errorCode, err.details ? [err.details] : undefined));
+            .json(errorResponse(err.message, err.errorCode, err.details as unknown[] | undefined));
     }
 
     // Unexpected / programming error — log full stack, return generic 500

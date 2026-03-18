@@ -14,7 +14,8 @@
         "format": "prettier --write .",
         "lint:fix": "eslint . --fix",
         "test": "jest --runInBand",
-        "prepare": "husky"
+        "prepare": "husky",
+        "seed:admin": "tsx scripts/seed-admin.ts"
     },
     "dependencies": {
         "@asteasolutions/zod-to-openapi": "^8.4.3",
