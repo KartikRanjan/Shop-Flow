@@ -17,10 +17,20 @@ import { errorHandler, notFound } from '@middlewares';
 import apiRoutes from '@routes';
 import { successResponse } from '@utils';
 import { HTTP_STATUS } from '@constants';
+import { setupSwagger } from 'xpress-toolkit/swagger';
+import { swaggerRegistry } from '@infrastructure/swagger';
 
 const createApp = () => {
     const app: Express = express();
     app.use(helmet());
+
+    // Setup Swagger Documentation
+    setupSwagger(app, {
+        registry: swaggerRegistry,
+        title: 'ShopFlow API',
+        version: '1.0.0',
+        path: '/api-docs',
+    });
 
     app.use(
         cors({

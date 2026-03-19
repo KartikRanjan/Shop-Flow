@@ -11,9 +11,22 @@ function main(): void {
     try {
         const app = createApp();
         const port = env.PORT;
-        app.listen(port, () => {
+        const server = app.listen(port, () => {
             logger.info(`Server is running on port ${port}`);
+            logger.info(`Documentation is available at http://localhost:${port}/api-docs`);
         });
+
+        const shutdown = () => {
+            logger.info('Shutting down server...');
+
+            server.close(() => {
+                logger.info('Server closed');
+                process.exit(0);
+            });
+        };
+
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
     } catch (error: unknown) {
         logger.error({ error }, 'Error starting server:');
     }
