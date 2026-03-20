@@ -51,14 +51,14 @@ export const verifyRefreshToken = (token: string): RefreshTokenPayload => {
 };
 
 export const extractAndVerifyAccessToken = (authHeader: string | undefined): AccessTokenPayload => {
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+    if (!token) {
         throw new AppError({
             message: 'Authorization header missing or malformed',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
             errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
         });
     }
-
-    const token = authHeader.split(' ')[1];
     return verifyAccessToken(token);
 };

@@ -7,7 +7,7 @@ import AuthService from '../../services/auth.service';
 import type { IAuthRepository, User, RefreshToken } from '../../types';
 import argon2 from 'argon2';
 import { HTTP_STATUS, USER_ROLES, ERROR_CODE } from '@constants';
-import * as jwtUtils from '@utils/jwt.util';
+import * as jwtUtils from '@utils';
 
 // Mock dependencies
 jest.mock('argon2');

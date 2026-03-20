@@ -1,5 +1,3 @@
-import { ERROR_CODE, HTTP_STATUS } from '@constants';
-
 /**
  * Base Application Error Class
  * @module errors
@@ -8,6 +6,8 @@ import { ERROR_CODE, HTTP_STATUS } from '@constants';
  * This class serves as the base for all custom errors in the application, providing
  * a consistent format for error handling and logging.
  */
+
+import { ERROR_CODE, HTTP_STATUS } from '@constants';
 
 export interface AppErrorOptions {
     message: string;

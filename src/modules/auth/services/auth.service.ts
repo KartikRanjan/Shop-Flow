@@ -18,7 +18,7 @@ import type {
     User,
 } from '../types';
 import { env } from '@config/env';
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils/jwt.util';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils';
 
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}

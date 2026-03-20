@@ -5,7 +5,7 @@
  * It verifies access tokens in the Authorization header and validates user roles.
  */
 
-import { extractAndVerifyAccessToken } from '@utils/jwt.util';
+import { extractAndVerifyAccessToken } from '@utils';
 import { AppError } from '@errors';
 import { ERROR_CODE, HTTP_STATUS, USER_ROLES, type UserRole } from '@constants';
 import { db } from '@infrastructure/database';
@@ -56,7 +56,8 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         )
         .limit(1);
 
-    if (result.length === 0) {
+    const firstResult = result[0];
+    if (!firstResult) {
         throw new AppError({
             message: 'Invalid or expired access token',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -64,7 +65,7 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    const session = result[0].session;
+    const session = firstResult.session;
 
     // Implement a 30-second grace period for revoked sessions
     // to allow in-flight requests during token refresh to complete
@@ -82,7 +83,7 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         }
     }
 
-    const user = result[0].user;
+    const user = firstResult.user;
 
     if (user.email !== payload.email) {
         throw new AppError({

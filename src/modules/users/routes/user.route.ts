@@ -6,8 +6,7 @@
 
 import { Router } from 'express';
 import { userController } from '../users.module';
-import { authenticate } from '@middlewares/authenticate.middleware';
-import { validateRequest } from '@middlewares/validate-request.middleware';
+import { authenticate, validateRequest } from '@middlewares';
 import {
     updateMeRequestSchema,
     updateUserRequestSchema,
