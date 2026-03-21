@@ -16,87 +16,140 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
     }
 
     async register({ email, name, passwordHash }: RegisterInput): Promise<User> {
-        const newUser = await this.db
-            .insert(users)
-            .values({
-                email,
-                name,
-                passwordHash,
-            })
-            .returning();
+        return this.execute({
+            context: 'AuthRepository.register',
+            operation: async () => {
+                const newUser = await this.db
+                    .insert(users)
+                    .values({
+                        email,
+                        name,
+                        passwordHash,
+                    })
+                    .returning();
 
-        return newUser[0];
+                if (!newUser[0]) {
+                    throw new Error('Failed to register user');
+                }
+
+                return newUser[0];
+            },
+        });
     }
 
     async findByEmail(email: string): Promise<User | null> {
-        const user = await this.db.query.users.findFirst({
-            where: (users, { eq }) => eq(users.email, email),
-        });
+        return this.execute({
+            context: 'AuthRepository.findByEmail',
+            operation: async () => {
+                const user = await this.db.query.users.findFirst({
+                    where: (users, { eq }) => eq(users.email, email),
+                });
 
-        return user ?? null;
+                return user ?? null;
+            },
+        });
     }
 
     async findById(id: string): Promise<User | null> {
-        const user = await this.db.query.users.findFirst({
-            where: (users, { eq }) => eq(users.id, id),
-        });
+        return this.execute({
+            context: 'AuthRepository.findById',
+            operation: async () => {
+                const user = await this.db.query.users.findFirst({
+                    where: (users, { eq }) => eq(users.id, id),
+                });
 
-        return user ?? null;
+                return user ?? null;
+            },
+        });
     }
 
     async createRefreshSession({ userId, device, ip, userAgent, expiresAt }: RefreshTokenInput): Promise<RefreshToken> {
-        const newRefreshToken = await this.db
-            .insert(refreshSessions)
-            .values({
-                userId,
-                expiresAt,
-                device,
-                ip,
-                userAgent,
-            })
-            .returning();
+        return this.execute({
+            context: 'AuthRepository.createRefreshSession',
+            operation: async () => {
+                const newRefreshToken = await this.db
+                    .insert(refreshSessions)
+                    .values({
+                        userId,
+                        expiresAt,
+                        device,
+                        ip,
+                        userAgent,
+                    })
+                    .returning();
 
-        return newRefreshToken[0];
+                if (!newRefreshToken[0]) {
+                    throw new Error('Failed to create refresh session');
+                }
+
+                return newRefreshToken[0];
+            },
+        });
     }
 
     async findRefreshSession(jti: string): Promise<RefreshToken | null> {
-        const session = await this.db.query.refreshSessions.findFirst({
-            where: (refreshSessions, { eq }) => eq(refreshSessions.id, jti),
-        });
+        return this.execute({
+            context: 'AuthRepository.findRefreshSession',
+            operation: async () => {
+                const session = await this.db.query.refreshSessions.findFirst({
+                    where: (refreshSessions, { eq }) => eq(refreshSessions.id, jti),
+                });
 
-        return session ?? null;
+                return session ?? null;
+            },
+        });
     }
 
     /** Atomically marks session as revoked and returns it if it was active */
     async consumeRefreshSession(jti: string): Promise<RefreshToken | null> {
-        const result = await this.db
-            .update(refreshSessions)
-            .set({ revokedAt: new Date() })
-            .where(and(eq(refreshSessions.id, jti), isNull(refreshSessions.revokedAt)))
-            .returning();
+        return this.execute({
+            context: 'AuthRepository.consumeRefreshSession',
+            operation: async () => {
+                const result = await this.db
+                    .update(refreshSessions)
+                    .set({ revokedAt: new Date() })
+                    .where(and(eq(refreshSessions.id, jti), isNull(refreshSessions.revokedAt)))
+                    .returning();
 
-        return result[0] ?? null;
+                return result[0] ?? null;
+            },
+        });
     }
 
     async revokeRefreshSession(jti: string): Promise<void> {
-        await this.db.update(refreshSessions).set({ revokedAt: new Date() }).where(eq(refreshSessions.id, jti));
+        return this.execute({
+            context: 'AuthRepository.revokeRefreshSession',
+            operation: async () => {
+                await this.db.update(refreshSessions).set({ revokedAt: new Date() }).where(eq(refreshSessions.id, jti));
+            },
+        });
     }
 
     async revokeAllUserSessions(userId: string): Promise<void> {
-        await this.db
-            .update(refreshSessions)
-            .set({ revokedAt: new Date() })
-            .where(and(eq(refreshSessions.userId, userId), isNull(refreshSessions.revokedAt)));
+        return this.execute({
+            context: 'AuthRepository.revokeAllUserSessions',
+            operation: async () => {
+                await this.db
+                    .update(refreshSessions)
+                    .set({ revokedAt: new Date() })
+                    .where(and(eq(refreshSessions.userId, userId), isNull(refreshSessions.revokedAt)));
+            },
+        });
     }
 
     async findActiveSessionsByUser(userId: string): Promise<RefreshToken[]> {
-        return this.db.query.refreshSessions.findMany({
-            where: (refreshSessions, { eq, and, isNull, gt }) =>
-                and(
-                    eq(refreshSessions.userId, userId),
-                    isNull(refreshSessions.revokedAt),
-                    gt(refreshSessions.expiresAt, new Date()),
-                ),
+        return this.execute({
+            context: 'AuthRepository.findActiveSessionsByUser',
+            operation: async () => {
+                return this.db.query.refreshSessions.findMany({
+                    where: (refreshSessions, { eq, and, isNull, gt }) =>
+                        and(
+                            eq(refreshSessions.userId, userId),
+                            isNull(refreshSessions.revokedAt),
+                            gt(refreshSessions.expiresAt, new Date()),
+                        ),
+                });
+            },
         });
     }
 }

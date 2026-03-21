@@ -23,11 +23,18 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}
 
+    /** Guard: ensures the user exists and is active (no info leakage) */
+    private assertUserIsActive(user: User | null, error: AppError): asserts user is User {
+        if (!user || !user.isActive || user.deletedAt) {
+            throw error;
+        }
+    }
+
     /** Ensures email uniqueness and hashes password before user creation */
     async registerUser(data: RegisterUserInput): Promise<User> {
         const existingUser = await this.authRepository.findByEmail(data.email);
 
-        if (existingUser) {
+        if (existingUser && !existingUser.deletedAt) {
             throw new AppError({
                 message: 'User already exists',
                 statusCode: HTTP_STATUS.CONFLICT,
@@ -44,21 +51,14 @@ export default class AuthService implements IAuthService {
     async loginUser(data: LoginUserInput): Promise<LoginResult> {
         const user = await this.authRepository.findByEmail(data.email);
 
-        if (!user) {
-            throw new AppError({
+        this.assertUserIsActive(
+            user,
+            new AppError({
                 message: 'Invalid email or password',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
-            });
-        }
-
-        if (!user.isActive || user.deletedAt) {
-            throw new AppError({
-                message: `User account is ${user.deletedAt ? 'has been deleted' : 'inactive'}`,
-                statusCode: HTTP_STATUS.FORBIDDEN,
-                errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
-            });
-        }
+            }),
+        );
 
         const isPasswordValid = await argon2.verify(user.passwordHash, data.password);
 
@@ -119,21 +119,14 @@ export default class AuthService implements IAuthService {
 
         const user = await this.authRepository.findById(session.userId);
 
-        if (!user) {
-            throw new AppError({
-                message: 'User associated with refresh token not found',
+        this.assertUserIsActive(
+            user,
+            new AppError({
+                message: 'Refresh token is invalid or has been revoked',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
-            });
-        }
-
-        if (!user.isActive || user.deletedAt) {
-            throw new AppError({
-                message: `User account is ${user?.deletedAt ? 'has been deleted' : 'inactive'}`,
-                statusCode: HTTP_STATUS.FORBIDDEN,
-                errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
-            });
-        }
+            }),
+        );
 
         const refreshExpiryDays = Number(env.REFRESH_TOKEN_EXPIRES_IN_DAYS);
 

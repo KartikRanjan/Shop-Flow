@@ -75,7 +75,16 @@ jest.mock('@config/env', () => ({
 
 // ─── Grab the mock service reference ─────────────────────────────────────────
 
-type MockAuthModule = { _mockService: Record<string, jest.Mock> };
+type MockAuthService = {
+    registerUser: jest.Mock;
+    loginUser: jest.Mock;
+    refreshTokens: jest.Mock;
+    logout: jest.Mock;
+    logoutAll: jest.Mock;
+    getActiveSessions: jest.Mock;
+};
+
+type MockAuthModule = { _mockService: MockAuthService };
 const mockAuthService = jest.requireMock<MockAuthModule>('../../auth.module')._mockService;
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -119,7 +128,7 @@ describe('Auth Integration Tests', () => {
         const validPayload = { email: 'test@example.com', name: 'Test User', password: 'password123' };
 
         it('should return 201 and user dto on successful registration', async () => {
-            mockAuthService['registerUser'].mockResolvedValue(mockUser);
+            mockAuthService.registerUser.mockResolvedValue(mockUser);
 
             const res = await request(app).post('/api/v1/auth/register').send(validPayload);
 
@@ -137,7 +146,7 @@ describe('Auth Integration Tests', () => {
             const res = await request(app).post('/api/v1/auth/register').send({ email: 'test@example.com' });
 
             expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
-            expect(mockAuthService['registerUser']).not.toHaveBeenCalled();
+            expect(mockAuthService.registerUser).not.toHaveBeenCalled();
         });
 
         it('should return 400 when email is invalid', async () => {
@@ -157,7 +166,7 @@ describe('Auth Integration Tests', () => {
         });
 
         it('should return 409 when user already exists', async () => {
-            mockAuthService['registerUser'].mockRejectedValue(
+            mockAuthService.registerUser.mockRejectedValue(
                 new AppError({ message: 'User already exists', statusCode: HTTP_STATUS.CONFLICT }),
             );
 
@@ -173,7 +182,7 @@ describe('Auth Integration Tests', () => {
         const validPayload = { email: 'test@example.com', password: 'password123' };
 
         it('should return 200, set refreshToken cookie, and return accessToken on success', async () => {
-            mockAuthService['loginUser'].mockResolvedValue({
+            mockAuthService.loginUser.mockResolvedValue({
                 user: mockUser,
                 accessToken: 'access-token',
                 refreshToken: 'refresh-token',
@@ -196,11 +205,11 @@ describe('Auth Integration Tests', () => {
             const res = await request(app).post('/api/v1/auth/login').send({ password: 'password123' });
 
             expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
-            expect(mockAuthService['loginUser']).not.toHaveBeenCalled();
+            expect(mockAuthService.loginUser).not.toHaveBeenCalled();
         });
 
         it('should return 401 for invalid credentials', async () => {
-            mockAuthService['loginUser'].mockRejectedValue(
+            mockAuthService.loginUser.mockRejectedValue(
                 new AppError({ message: 'Invalid email or password', statusCode: HTTP_STATUS.UNAUTHORIZED }),
             );
 
@@ -210,7 +219,7 @@ describe('Auth Integration Tests', () => {
         });
 
         it('should return 403 when account is inactive', async () => {
-            mockAuthService['loginUser'].mockRejectedValue(
+            mockAuthService.loginUser.mockRejectedValue(
                 new AppError({ message: 'User account is inactive', statusCode: HTTP_STATUS.FORBIDDEN }),
             );
 
@@ -224,7 +233,7 @@ describe('Auth Integration Tests', () => {
 
     describe('POST /api/v1/auth/refresh', () => {
         it('should return 200 and a new accessToken when refresh cookie is present', async () => {
-            mockAuthService['refreshTokens'].mockResolvedValue({
+            mockAuthService.refreshTokens.mockResolvedValue({
                 accessToken: 'new-access-token',
                 refreshToken: 'new-refresh-token',
             });
@@ -241,11 +250,11 @@ describe('Auth Integration Tests', () => {
             const res = await request(app).post('/api/v1/auth/refresh');
 
             expect(res.status).toBe(HTTP_STATUS.UNAUTHORIZED);
-            expect(mockAuthService['refreshTokens']).not.toHaveBeenCalled();
+            expect(mockAuthService.refreshTokens).not.toHaveBeenCalled();
         });
 
         it('should return 401 when refresh token is invalid or revoked', async () => {
-            mockAuthService['refreshTokens'].mockRejectedValue(
+            mockAuthService.refreshTokens.mockRejectedValue(
                 new AppError({
                     message: 'Refresh token is invalid or has been revoked',
                     statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -262,7 +271,7 @@ describe('Auth Integration Tests', () => {
 
     describe('DELETE /api/v1/auth/logout', () => {
         it('should return 200 and clear the refresh cookie on successful logout', async () => {
-            mockAuthService['logout'].mockResolvedValue(undefined);
+            mockAuthService.logout.mockResolvedValue(undefined);
 
             const res = await request(app)
                 .delete('/api/v1/auth/logout')
@@ -281,7 +290,7 @@ describe('Auth Integration Tests', () => {
             const res = await request(app).delete('/api/v1/auth/logout');
 
             expect(res.status).toBe(HTTP_STATUS.UNAUTHORIZED);
-            expect(mockAuthService['logout']).not.toHaveBeenCalled();
+            expect(mockAuthService.logout).not.toHaveBeenCalled();
         });
     });
 
@@ -289,14 +298,14 @@ describe('Auth Integration Tests', () => {
 
     describe('DELETE /api/v1/auth/logout-all', () => {
         it('should return 200 and revoke all sessions for the authenticated user', async () => {
-            mockAuthService['logoutAll'].mockResolvedValue(undefined);
+            mockAuthService.logoutAll.mockResolvedValue(undefined);
 
             const res = await request(app).delete('/api/v1/auth/logout-all');
 
             expect(res.status).toBe(HTTP_STATUS.OK);
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             expect(res.body.success).toBe(true);
-            expect(mockAuthService['logoutAll']).toHaveBeenCalledWith('user-id');
+            expect(mockAuthService.logoutAll).toHaveBeenCalledWith('user-id');
         });
     });
 
@@ -304,18 +313,18 @@ describe('Auth Integration Tests', () => {
 
     describe('GET /api/v1/auth/active-sessions', () => {
         it('should return 200 and list of active sessions', async () => {
-            mockAuthService['getActiveSessions'].mockResolvedValue(mockSessions);
+            mockAuthService.getActiveSessions.mockResolvedValue(mockSessions);
 
             const res = await request(app).get('/api/v1/auth/active-sessions');
 
             expect(res.status).toBe(HTTP_STATUS.OK);
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             expect(res.body.data).toHaveLength(2);
-            expect(mockAuthService['getActiveSessions']).toHaveBeenCalledWith('user-id');
+            expect(mockAuthService.getActiveSessions).toHaveBeenCalledWith('user-id');
         });
 
         it('should return 200 with empty array when no active sessions exist', async () => {
-            mockAuthService['getActiveSessions'].mockResolvedValue([]);
+            mockAuthService.getActiveSessions.mockResolvedValue([]);
 
             const res = await request(app).get('/api/v1/auth/active-sessions');
 
