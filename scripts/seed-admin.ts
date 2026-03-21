@@ -12,7 +12,7 @@ import { Pool } from 'pg';
 import { boolean, pgEnum, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 // Inline schema to avoid TypeScript path alias resolution issues outside the app build pipeline
-const userRoleEnum = pgEnum('user_roles', ['user', 'admin', 'seller']);
+const userRoleEnum = pgEnum('user_roles', ['user', 'admin', 'super_admin', 'seller']);
 
 const usersTable = pgTable('users', {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -46,7 +46,7 @@ async function seedAdmin() {
             name: 'Kartik',
             email: 'kkrbglr@admin.com',
             passwordHash,
-            roles: ['admin'],
+            roles: ['super_admin', 'admin'],
             isActive: true,
             isEmailVerified: true,
         })
