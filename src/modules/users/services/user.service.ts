@@ -30,11 +30,18 @@ export default class UserService {
         if (!data || Object.keys(data).length === 0) {
             throw new ValidationError('No fields provided to update');
         }
-        return await this.userRepository.updateById(id, data);
+        const updatedUser = await this.userRepository.updateById(id, data);
+        if (!updatedUser) {
+            throw new NotFoundError('User not found');
+        }
+        return updatedUser;
     }
 
-    async deleteAccountById(id: string) {
-        return await this.userRepository.deleteById(id);
+    async deleteAccountById(id: string): Promise<void> {
+        const user = await this.userRepository.deleteById(id);
+        if (!user) {
+            throw new NotFoundError('User not found');
+        }
     }
 
     /** Retrieves paginated users and transforms to DTOs */

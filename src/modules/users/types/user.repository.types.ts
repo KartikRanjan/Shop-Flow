@@ -14,7 +14,7 @@ export type User = InferSelectModel<typeof users>;
 export interface IUserRepository {
     findById(id: string): Promise<User | null>;
     findByEmail(email: string): Promise<User | null>;
-    updateById(id: string, data: Partial<User>): Promise<User>;
-    deleteById(id: string): Promise<void>;
+    updateById(id: string, data: Partial<User>): Promise<User | null>;
+    deleteById(id: string): Promise<User | null>;
     findMany(options: PaginationOptions): Promise<PaginatedResult<User>>;
 }
