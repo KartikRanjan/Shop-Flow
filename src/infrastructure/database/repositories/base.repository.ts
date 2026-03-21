@@ -8,9 +8,25 @@
 import { logger } from '@infrastructure/logger';
 import type { PaginatedResult } from '@types';
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@constants';
+import { DatabaseError } from '@errors';
 
 export class BaseRepository {
     protected logger = logger;
+
+    protected async execute<T>(params: { operation: () => Promise<T>; context?: string }): Promise<T> {
+        const { operation, context } = params;
+        try {
+            return await operation();
+        } catch (error) {
+            if (error instanceof DatabaseError) {
+                throw error;
+            }
+
+            this.logger.error({ err: error, context }, 'Database operation failed');
+            const message = error instanceof Error ? error.message : 'Unknown database error';
+            throw new DatabaseError(context ? `[${context}] ${message}` : message, error);
+        }
+    }
 
     protected now(): Date {
         return new Date();
@@ -46,5 +62,27 @@ export class BaseRepository {
             page: Math.max(1, page),
             totalPages: safeLimit > 0 ? Math.ceil(total / safeLimit) : 0,
         };
+    }
+
+    /**
+     * Executes a paginated database query.
+     */
+    protected async paginatedQuery<T>(params: {
+        context: string;
+        page?: number;
+        limit?: number;
+        queryFn: (options: { limit: number; offset: number }) => Promise<T[]>;
+        countFn: () => Promise<number>;
+    }): Promise<PaginatedResult<T>> {
+        const { context, page = DEFAULT_PAGE, limit = DEFAULT_PAGE_SIZE, queryFn, countFn } = params;
+
+        return this.execute({
+            context,
+            operation: async () => {
+                const { limit: safeLimit, offset } = this.buildPagination(page, limit);
+                const [data, total] = await Promise.all([queryFn({ limit: safeLimit, offset }), countFn()]);
+                return this.buildPaginatedResponse(data, total, page, limit);
+            },
+        });
     }
 }
