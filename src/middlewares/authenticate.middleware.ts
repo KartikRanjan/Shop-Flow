@@ -3,6 +3,13 @@
  * @module middlewares
  * @description This middleware module provides authentication and authorization checks for the application.
  * It verifies access tokens in the Authorization header and validates user roles.
+ *
+ * Validation flow:
+ *   1. Verify JWT signature + extract payload (sub, sid, type)
+ *   2. Validate token type === 'access'
+ *   3. Validate session via Redis (session:{sid})  →  fallback to DB
+ *   4. Validate user via Redis (user:{userId})     →  fallback to DB
+ *   5. Authorize roles
  */
 
 import { extractAndVerifyAccessToken } from '@utils';
@@ -12,7 +19,119 @@ import { db } from '@infrastructure/database';
 import { refreshSessions } from '@modules/auth/models/auth.model';
 import { usersTable } from '@modules/users/models/user.model';
 import { eq, and, isNull, gt } from 'drizzle-orm';
+import { sessionCache } from '@modules/auth/cache/session.cache';
+import { userCache, type CachedUser } from '@modules/auth/cache/user.cache';
+import { logger } from '@infrastructure/logger';
 import type { Request, Response, NextFunction } from 'express';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Throws if the session is revoked (outside the 30-second grace period). */
+const assertSessionNotRevoked = (revokedAt: string | null | Date | undefined): void => {
+    if (!revokedAt) return;
+
+    const GRACE_PERIOD_MS = 30 * 1000;
+    const revokedTime = new Date(revokedAt).getTime();
+
+    if (Date.now() - revokedTime > GRACE_PERIOD_MS) {
+        throw new AppError({
+            message: 'Invalid or expired access token',
+            statusCode: HTTP_STATUS.UNAUTHORIZED,
+            errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+        });
+    }
+};
+
+/**
+ * Resolves the session for `sessionId` owned by `userId`.
+ * Tries Redis first; falls back to DB and repopulates the cache on a miss.
+ */
+const resolveSession = async (sessionId: string, userId: string) => {
+    // ── 1. Redis hit ──────────────────────────────────────────────────────────
+    const cached = await sessionCache.get(sessionId);
+    if (cached !== null) {
+        logger.debug(`Auth: session cache HIT for sid="${sessionId}"`);
+        // Verify the cached session belongs to the claimed user (prevents cross-user session attacks)
+        if (cached.userId !== userId) return null;
+        assertSessionNotRevoked(cached.revokedAt);
+        return cached;
+    }
+
+    // ── 2. DB fallback ────────────────────────────────────────────────────────
+    logger.debug(`Auth: session cache MISS for sid="${sessionId}" — falling back to DB`);
+
+    const rows = await db
+        .select()
+        .from(refreshSessions)
+        .where(
+            and(
+                eq(refreshSessions.id, sessionId),
+                eq(refreshSessions.userId, userId),
+                gt(refreshSessions.expiresAt, new Date()),
+            ),
+        )
+        .limit(1);
+
+    const session = rows[0];
+
+    if (!session) return null;
+
+    assertSessionNotRevoked(session.revokedAt);
+
+    // ── 3. Repopulate Redis ───────────────────────────────────────────────────
+    void sessionCache.set({
+        id: session.id,
+        userId: session.userId,
+        expiresAt: session.expiresAt.toISOString(),
+        revokedAt: session.revokedAt ? session.revokedAt.toISOString() : null,
+    });
+
+    return session;
+};
+
+/**
+ * Resolves the user for `userId`, checking active status.
+ * Tries Redis first; falls back to DB and repopulates the cache on a miss.
+ */
+const resolveUser = async (userId: string): Promise<CachedUser | null> => {
+    // ── 1. Redis hit ──────────────────────────────────────────────────────────
+    const cached = await userCache.get(userId);
+    if (cached !== null) {
+        logger.debug(`Auth: user cache HIT for userId="${userId}"`);
+        return cached;
+    }
+
+    // ── 2. DB fallback ────────────────────────────────────────────────────────
+    logger.debug(`Auth: user cache MISS for userId="${userId}" — falling back to DB`);
+
+    const rows = await db
+        .select({
+            id: usersTable.id,
+            email: usersTable.email,
+            roles: usersTable.roles,
+            isActive: usersTable.isActive,
+        })
+        .from(usersTable)
+        .where(and(eq(usersTable.id, userId), eq(usersTable.isActive, true), isNull(usersTable.deletedAt)))
+        .limit(1);
+
+    const user = rows[0];
+    if (!user) return null;
+
+    const cachedUser: CachedUser = {
+        id: user.id,
+        email: user.email,
+        roles: user.roles as UserRole[],
+        isActive: user.isActive,
+    };
+
+    // ── 3. Repopulate Redis ───────────────────────────────────────────────────
+    void userCache.set(cachedUser);
+
+    return cachedUser;
+};
+
+// ─── Core auth logic ──────────────────────────────────────────────────────────
 
 /**
  * Helper to handle the core authentication logic
@@ -22,8 +141,8 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
     const authHeader = req.headers.authorization;
     const payload = extractAndVerifyAccessToken(authHeader);
 
-    // Defensive check on payload
-    if (!payload?.sub || !payload.email || !payload.sid || !Array.isArray(payload.roles)) {
+    // Defensive check: only trust sub + sid from JWT; email/roles are metadata validated via DB/cache
+    if (!payload?.sub || !payload.sid) {
         throw new AppError({
             message: 'Invalid or malformed token payload',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -31,33 +150,10 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    // INNER JOIN ensures the query returns nothing if user is missing, inactive, or soft-deleted
-    // (equivalent to MongoDB's $lookup + $unwind without preserveNullAndEmptyArrays)
-    const result = await db
-        .select({
-            user: {
-                id: usersTable.id,
-                email: usersTable.email,
-                roles: usersTable.roles,
-            },
-            session: refreshSessions,
-        })
-        .from(refreshSessions)
-        .innerJoin(
-            usersTable,
-            and(eq(refreshSessions.userId, usersTable.id), eq(usersTable.isActive, true), isNull(usersTable.deletedAt)),
-        )
-        .where(
-            and(
-                eq(refreshSessions.id, payload.sid),
-                eq(refreshSessions.userId, payload.sub),
-                gt(refreshSessions.expiresAt, new Date()),
-            ),
-        )
-        .limit(1);
+    // ── Step 2: Validate session (Redis → DB) ─────────────────────────────────
+    const session = await resolveSession(payload.sid, payload.sub);
 
-    const firstResult = result[0];
-    if (!firstResult) {
+    if (!session) {
         throw new AppError({
             message: 'Invalid or expired access token',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -65,38 +161,18 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    const session = firstResult.session;
+    // ── Step 3: Validate user (Redis → DB) ───────────────────────────────────
+    const user = await resolveUser(payload.sub);
 
-    // Implement a 30-second grace period for revoked sessions
-    // to allow in-flight requests during token refresh to complete
-    if (session.revokedAt) {
-        const GRACE_PERIOD_MS = 30 * 1000;
-        const revokedTime = new Date(session.revokedAt).getTime();
-        const now = Date.now();
-
-        if (now - revokedTime > GRACE_PERIOD_MS) {
-            throw new AppError({
-                message: 'Invalid or expired access token',
-                statusCode: HTTP_STATUS.UNAUTHORIZED,
-                errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
-            });
-        }
-    }
-
-    const user = firstResult.user;
-
-    if (user.email !== payload.email) {
+    if (!user?.isActive) {
         throw new AppError({
-            message: 'Invalid or malformed token payload',
+            message: 'Invalid or expired access token',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
             errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
         });
     }
 
-    // Use roles from database for more robust authorization (syncs immediately with role changes)
-    const userRoles = user.roles as UserRole[];
-
-    // If roles are provided, check if the user has at least one of them
+    // ── Step 4: Authorize roles ───────────────────────────────────────────────
     if (!roles || roles.length === 0) {
         throw new AppError({
             message: 'Access denied: No roles specified for authorization',
@@ -105,7 +181,7 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    const hasRole = roles.some((role) => userRoles.includes(role));
+    const hasRole = roles.some((role) => user.roles.includes(role));
 
     if (!hasRole) {
         throw new AppError({
@@ -115,13 +191,15 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
         });
     }
 
-    // Attach fresh user info from DB to request object
+    // Attach fresh user info to request object
     req.user = {
         id: user.id,
         email: user.email,
-        roles: userRoles,
+        roles: user.roles,
     };
 };
+
+// ─── Exported middleware ──────────────────────────────────────────────────────
 
 export const authenticate = {
     /**

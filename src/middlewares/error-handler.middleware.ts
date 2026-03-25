@@ -7,7 +7,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { AppError } from '@errors';
+import { AppError, DatabaseError } from '@errors';
 import { errorResponse } from '@utils';
 import { ERROR_CODE, HTTP_STATUS } from '@constants';
 import { logger } from '@infrastructure/logger';
@@ -19,6 +19,16 @@ export const errorHandler = (err: Error | AppError, req: Request, res: Response,
         return res
             .status(err.statusCode)
             .json(errorResponse(err.message, err.errorCode, err.details as unknown[] | undefined));
+    }
+
+    // Known infrastructure error — log internally, never expose SQL/internals to client
+    if (err instanceof DatabaseError) {
+        logger.error({ err }, 'Database operation failed');
+        const stack = env.NODE_ENV === 'production' ? undefined : err.stack;
+        return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+            ...errorResponse('Internal Server Error', ERROR_CODE.INTERNAL_SERVER_ERROR),
+            ...(stack && { stack }),
+        });
     }
 
     // Unexpected / programming error — log full stack, return generic 500
