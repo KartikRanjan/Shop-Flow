@@ -7,7 +7,7 @@
 import type { Request, Response } from 'express';
 import { AUTH_COOKIE_PATH, ERROR_CODE, HTTP_STATUS } from '@constants';
 import { successResponse } from '@utils';
-import { toAuthUserDto } from '../dto';
+import { toAuthUserDto, toSessionDto } from '../dto';
 import type { registerRequestSchema, loginRequestSchema } from '../validations';
 import type { IAuthService } from '../types';
 import type { TypedRequest } from '@types';
@@ -114,6 +114,8 @@ export default class AuthController {
     /** Retrieve all active sessions for the user */
     getActiveSessions = async (req: Request, res: Response) => {
         const sessions = await this.authService.getActiveSessions(req.user!.id);
-        return res.status(HTTP_STATUS.OK).json(successResponse(sessions, 'Active sessions retrieved successfully'));
+        return res
+            .status(HTTP_STATUS.OK)
+            .json(successResponse(sessions.map(toSessionDto), 'Active sessions retrieved successfully'));
     };
 }

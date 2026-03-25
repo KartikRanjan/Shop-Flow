@@ -4,7 +4,7 @@
  * @description Data Transfer Objects for the auth module. Strips sensitive fields before sending to clients.
  */
 
-import type { User } from '../types';
+import type { User, RefreshToken } from '../types';
 import type { LoginBodyInput, RegisterBodyInput } from '../validations';
 
 export type RegisterDto = RegisterBodyInput;
@@ -34,4 +34,18 @@ export const toAuthUserDto = (user: User): AuthUserDto => ({
     isPhoneVerified: user.isPhoneVerified,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+});
+
+export interface SessionDto {
+    device: string | null;
+    ip: string | null;
+    userAgent: string | null;
+    createdAt: Date;
+}
+
+export const toSessionDto = (session: RefreshToken): SessionDto => ({
+    device: session.device,
+    ip: session.ip,
+    userAgent: session.userAgent,
+    createdAt: session.createdAt,
 });

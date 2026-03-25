@@ -19,6 +19,9 @@ import type {
 } from '../types';
 import { env } from '@config/env';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils';
+import { sessionCache } from '../cache/session.cache';
+import { userCache } from '../cache/user.cache';
+import type { UserRole } from '@constants';
 
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}
@@ -34,6 +37,7 @@ export default class AuthService implements IAuthService {
     async registerUser(data: RegisterUserInput): Promise<User> {
         const existingUser = await this.authRepository.findByEmail(data.email);
 
+        // Allow re-registration if the previous account was soft-deleted
         if (existingUser && !existingUser.deletedAt) {
             throw new AppError({
                 message: 'User already exists',
@@ -89,15 +93,36 @@ export default class AuthService implements IAuthService {
             activeSessions.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
             const sessionsToRevoke = activeSessions.slice(0, activeSessions.length - MAX_ACTIVE_SESSIONS);
 
-            await Promise.all(sessionsToRevoke.map((session) => this.authRepository.revokeRefreshSession(session.id)));
+            await Promise.all(
+                sessionsToRevoke.map(async (session) => {
+                    await this.authRepository.revokeRefreshSession(session.id);
+                    // Remove evicted sessions from Redis
+                    void sessionCache.delete(user.id, session.id);
+                }),
+            );
         }
 
         const refreshToken = generateRefreshToken({ sub: user.id, jti: newRefreshSession.id }, `${refreshExpiryDays}d`);
 
         const accessToken = generateAccessToken(
-            { sub: user.id, email: user.email, roles: user.roles, sid: newRefreshSession.id },
+            { sub: user.id, sid: newRefreshSession.id, email: user.email, roles: user.roles },
             env.ACCESS_TOKEN_EXPIRES_IN,
         );
+
+        // ── Cache new session + user (fire-and-forget; non-critical) ──────────
+        void sessionCache.set({
+            id: newRefreshSession.id,
+            userId: user.id,
+            expiresAt: newRefreshSession.expiresAt.toISOString(),
+            revokedAt: null,
+        });
+
+        void userCache.set({
+            id: user.id,
+            email: user.email,
+            roles: user.roles as UserRole[],
+            isActive: user.isActive,
+        });
 
         return { user, accessToken, refreshToken } satisfies LoginResult;
     }
@@ -116,6 +141,9 @@ export default class AuthService implements IAuthService {
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
             });
         }
+
+        // ── Remove old session from Redis ─────────────────────────────────────
+        void sessionCache.delete(session.userId, session.id);
 
         const user = await this.authRepository.findById(session.userId);
 
@@ -144,9 +172,17 @@ export default class AuthService implements IAuthService {
         );
 
         const accessToken = generateAccessToken(
-            { sub: user.id, email: user.email, roles: user.roles, sid: newRefreshSession.id },
+            { sub: user.id, sid: newRefreshSession.id, email: user.email, roles: user.roles },
             env.ACCESS_TOKEN_EXPIRES_IN,
         );
+
+        // ── Cache rotated session (fire-and-forget) ───────────────────────────
+        void sessionCache.set({
+            id: newRefreshSession.id,
+            userId: user.id,
+            expiresAt: newRefreshSession.expiresAt.toISOString(),
+            revokedAt: null,
+        });
 
         return { accessToken, refreshToken: newRefreshToken } satisfies RefreshResult;
     }
@@ -156,19 +192,26 @@ export default class AuthService implements IAuthService {
         const payload = verifyRefreshToken(refreshToken);
         const session = await this.authRepository.findRefreshSession(payload.jti);
 
-        if (session?.userId !== userId) {
+        if (session?.userId !== userId || session.revokedAt) {
             throw new AppError({
-                message: 'Refresh token is invalid or does not belong to the authenticated user',
+                message: 'Refresh token is invalid or has already been revoked',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
             });
         }
 
         await this.authRepository.revokeRefreshSession(payload.jti);
+
+        // ── Remove session from Redis (fire-and-forget) ───────────────────────
+        void sessionCache.delete(userId, payload.jti);
     }
 
     async logoutAll(userId: string): Promise<void> {
         await this.authRepository.revokeAllUserSessions(userId);
+
+        // ── Remove all sessions + user cache from Redis (fire-and-forget) ─────
+        void sessionCache.deleteAllForUser(userId);
+        void userCache.invalidate(userId);
     }
 
     async getActiveSessions(userId: string): Promise<RefreshToken[]> {

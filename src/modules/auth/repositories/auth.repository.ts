@@ -43,6 +43,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
             operation: async () => {
                 const user = await this.db.query.users.findFirst({
                     where: (users, { eq }) => eq(users.email, email),
+                    orderBy: (users, { desc }) => [desc(users.createdAt)],
                 });
 
                 return user ?? null;

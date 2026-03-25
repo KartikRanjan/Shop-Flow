@@ -9,6 +9,7 @@ import type { UserRepository } from '../repositories';
 import type { User } from '../types';
 import type { PaginationOptions } from '@types';
 import { toUserDetailsDto } from '../dto';
+import { userCache } from '@modules/auth/cache/user.cache';
 
 export default class UserService {
     constructor(private readonly userRepository: UserRepository) {}
@@ -34,6 +35,7 @@ export default class UserService {
         if (!updatedUser) {
             throw new NotFoundError('User not found');
         }
+        await userCache.invalidate(id);
         return updatedUser;
     }
 
@@ -42,6 +44,7 @@ export default class UserService {
         if (!user) {
             throw new NotFoundError('User not found');
         }
+        await userCache.invalidate(id);
     }
 
     /** Retrieves paginated users and transforms to DTOs */
