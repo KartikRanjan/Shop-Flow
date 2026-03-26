@@ -1,5 +1,5 @@
-import { boolean, pgEnum, pgTable, timestamp, uuid, varchar, uniqueIndex } from 'drizzle-orm/pg-core';
-import { USER_ROLES } from '@constants';
+import { pgEnum, pgTable, timestamp, uuid, varchar, uniqueIndex } from 'drizzle-orm/pg-core';
+import { ACCOUNT_STATUS, USER_ROLES } from '@constants';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -11,6 +11,12 @@ import { sql } from 'drizzle-orm';
  */
 
 export const userRoleEnum = pgEnum('user_roles', USER_ROLES);
+export const accountStatusEnum = pgEnum('account_status', [
+    ACCOUNT_STATUS.PENDING_VERIFICATION,
+    ACCOUNT_STATUS.ACTIVE,
+    ACCOUNT_STATUS.SUSPENDED,
+    ACCOUNT_STATUS.BANNED,
+]);
 
 export const usersTable = pgTable(
     'users',
@@ -21,9 +27,13 @@ export const usersTable = pgTable(
         phoneNumber: varchar('phone_number', { length: 20 }),
         passwordHash: varchar('password_hash', { length: 255 }).notNull(),
         roles: userRoleEnum('roles').array().notNull().default([USER_ROLES.USER]),
-        isActive: boolean('is_active').notNull().default(true),
-        isEmailVerified: boolean('is_email_verified').notNull().default(false),
-        isPhoneVerified: boolean('is_phone_verified').notNull().default(false),
+        accountStatus: accountStatusEnum('account_status').notNull().default(ACCOUNT_STATUS.PENDING_VERIFICATION),
+        statusUpdatedAt: timestamp('status_updated_at', { withTimezone: true }).defaultNow().notNull(),
+        statusReason: varchar('status_reason', { length: 500 }),
+        emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+        emailVerificationToken: varchar('email_verification_token', { length: 255 }),
+        emailVerificationTokenExpiresAt: timestamp('email_verification_token_expires_at', { withTimezone: true }),
+        phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
         updatedAt: timestamp('updated_at', { withTimezone: true })
             .defaultNow()
@@ -41,6 +51,5 @@ export const usersTable = pgTable(
         };
     },
 );
-
 // Maintain backward compatibility
 export const users = usersTable;

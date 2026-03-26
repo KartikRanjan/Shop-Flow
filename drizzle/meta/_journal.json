@@ -15,6 +15,13 @@
             "when": 1774053053321,
             "tag": "0001_easy_lightspeed",
             "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "7",
+            "when": 1774553546975,
+            "tag": "0002_gorgeous_omega_flight",
+            "breakpoints": true
         }
     ]
 }

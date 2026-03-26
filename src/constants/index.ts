@@ -15,6 +15,15 @@ export const USER_ROLES = {
     SELLER: 'seller',
 } as const;
 
+export type AccountStatus = (typeof ACCOUNT_STATUS)[keyof typeof ACCOUNT_STATUS];
+
+export const ACCOUNT_STATUS = {
+    PENDING_VERIFICATION: 'pending_verification',
+    ACTIVE: 'active',
+    SUSPENDED: 'suspended',
+    BANNED: 'banned',
+} as const;
+
 export const MAX_PAGE_SIZE = 100;
 export const DEFAULT_PAGE_SIZE = 10;
 export const DEFAULT_PAGE = 1;
