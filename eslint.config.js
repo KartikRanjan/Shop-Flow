@@ -13,6 +13,17 @@ export default [
 
     ...tseslint.configs.recommendedTypeChecked,
 
+    {
+        ...tseslint.configs.disableTypeChecked,
+        files: ['**/*.{js,mjs,cjs}'],
+        languageOptions: {
+            ...tseslint.configs.disableTypeChecked.languageOptions,
+            globals: {
+                ...globals.node,
+            },
+        },
+    },
+
     prettier,
 
     {
