@@ -6,8 +6,9 @@
 
 import type { Database } from '@infrastructure/database';
 import { refreshSessions, users } from '@infrastructure/database/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, isNotNull, gt } from 'drizzle-orm';
 import { BaseRepository } from '@infrastructure/database/repositories/base.repository';
+import { ACCOUNT_STATUS } from '@constants';
 import type { IAuthRepository, RefreshToken, RefreshTokenInput, RegisterInput, User } from '../types';
 
 export default class AuthRepository extends BaseRepository implements IAuthRepository {
@@ -15,18 +16,11 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         super();
     }
 
-    async register({ email, name, passwordHash }: RegisterInput): Promise<User> {
+    async register(data: RegisterInput): Promise<User> {
         return this.execute({
             context: 'AuthRepository.register',
             operation: async () => {
-                const newUser = await this.db
-                    .insert(users)
-                    .values({
-                        email,
-                        name,
-                        passwordHash,
-                    })
-                    .returning();
+                const newUser = await this.db.insert(users).values(data).returning();
 
                 if (!newUser[0]) {
                     throw new Error('Failed to register user');
@@ -37,13 +31,58 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         });
     }
 
-    async findByEmail(email: string): Promise<User | null> {
+    async setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<boolean> {
         return this.execute({
-            context: 'AuthRepository.findByEmail',
+            context: 'AuthRepository.setEmailVerificationToken',
+            operation: async () => {
+                const result = await this.db
+                    .update(users)
+                    .set({
+                        emailVerificationToken: token,
+                        emailVerificationTokenExpiresAt: expiresAt,
+                    })
+                    .where(and(eq(users.id, userId), isNull(users.deletedAt), isNull(users.emailVerifiedAt)))
+                    .returning();
+
+                return result.length > 0;
+            },
+        });
+    }
+
+    async verifyEmail(token: string): Promise<boolean> {
+        return this.execute({
+            context: 'AuthRepository.verifyEmail',
+            operation: async () => {
+                const result = await this.db
+                    .update(users)
+                    .set({
+                        emailVerifiedAt: new Date(),
+                        accountStatus: ACCOUNT_STATUS.ACTIVE,
+                        statusUpdatedAt: new Date(),
+                        emailVerificationToken: null,
+                        emailVerificationTokenExpiresAt: null,
+                    })
+                    .where(
+                        and(
+                            eq(users.emailVerificationToken, token),
+                            isNull(users.deletedAt),
+                            isNotNull(users.emailVerificationTokenExpiresAt),
+                            gt(users.emailVerificationTokenExpiresAt, new Date()),
+                        ),
+                    )
+                    .returning();
+
+                return result.length > 0;
+            },
+        });
+    }
+
+    async findUserByEmail(email: string): Promise<User | null> {
+        return this.execute({
+            context: 'AuthRepository.findUserByEmail',
             operation: async () => {
                 const user = await this.db.query.users.findFirst({
-                    where: (users, { eq }) => eq(users.email, email),
-                    orderBy: (users, { desc }) => [desc(users.createdAt)],
+                    where: (users, { and, eq, isNull }) => and(eq(users.email, email), isNull(users.deletedAt)),
                 });
 
                 return user ?? null;
@@ -51,12 +90,12 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         });
     }
 
-    async findById(id: string): Promise<User | null> {
+    async findUserById(id: string): Promise<User | null> {
         return this.execute({
-            context: 'AuthRepository.findById',
+            context: 'AuthRepository.findUserById',
             operation: async () => {
                 const user = await this.db.query.users.findFirst({
-                    where: (users, { eq }) => eq(users.id, id),
+                    where: (users, { and, eq, isNull }) => and(eq(users.id, id), isNull(users.deletedAt)),
                 });
 
                 return user ?? null;

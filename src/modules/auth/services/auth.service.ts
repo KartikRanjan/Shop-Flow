@@ -5,8 +5,8 @@
  */
 
 import argon2 from 'argon2';
-import { AppError } from '@errors';
-import { DAY_MS, ERROR_CODE, HTTP_STATUS } from '@constants';
+import { AppError, ValidationError } from '@errors';
+import { ACCOUNT_STATUS, DAY_MS, ERROR_CODE, HTTP_STATUS } from '@constants';
 import type {
     IAuthRepository,
     IAuthService,
@@ -22,23 +22,35 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@
 import { sessionCache } from '../cache/session.cache';
 import { userCache } from '../cache/user.cache';
 import type { UserRole } from '@constants';
+import crypto from 'crypto';
+import { emailService } from '@infrastructure/email/email.service';
+import { logger } from '@infrastructure/logger';
 
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}
 
-    /** Guard: ensures the user exists and is active (no info leakage) */
-    private assertUserIsActive(user: User | null, error: AppError): asserts user is User {
-        if (!user || !user.isActive || user.deletedAt) {
-            throw error;
-        }
+    private createEmailVerificationToken(): { token: string; expiresAt: Date } {
+        return {
+            token: crypto.randomBytes(32).toString('hex'),
+            expiresAt: new Date(Date.now() + DAY_MS),
+        };
+    }
+
+    private async sendVerificationEmail(params: { email: string; name: string; token: string }): Promise<void> {
+        const { email, name, token } = params;
+
+        await emailService.enqueueVerificationEmail({
+            to: email,
+            name,
+            verificationUrl: `${env.APP_URL}/api/v1/auth/verify-email?token=${token}`,
+        });
     }
 
     /** Ensures email uniqueness and hashes password before user creation */
     async registerUser(data: RegisterUserInput): Promise<User> {
-        const existingUser = await this.authRepository.findByEmail(data.email);
+        const existingUser = await this.authRepository.findUserByEmail(data.email);
 
-        // Allow re-registration if the previous account was soft-deleted
-        if (existingUser && !existingUser.deletedAt) {
+        if (existingUser) {
             throw new AppError({
                 message: 'User already exists',
                 statusCode: HTTP_STATUS.CONFLICT,
@@ -47,22 +59,90 @@ export default class AuthService implements IAuthService {
         }
 
         const passwordHash = await argon2.hash(data.password);
+        const { token: emailVerificationToken, expiresAt: emailVerificationTokenExpiresAt } =
+            this.createEmailVerificationToken();
 
-        return this.authRepository.register({ ...data, passwordHash });
+        const newUser = await this.authRepository.register({
+            ...data,
+            passwordHash,
+            emailVerificationToken,
+            emailVerificationTokenExpiresAt,
+        });
+
+        void this.sendVerificationEmail({
+            email: newUser.email,
+            name: newUser.name,
+            token: emailVerificationToken,
+        }).catch((error: unknown) => {
+            logger.error(
+                {
+                    error,
+                    userId: newUser.id,
+                    email: newUser.email,
+                },
+                'Failed to enqueue verification email after registration',
+            );
+        });
+
+        return newUser;
+    }
+
+    async resendVerificationEmail(email: string): Promise<void> {
+        const user = await this.authRepository.findUserByEmail(email);
+
+        if (!user || user.emailVerifiedAt) {
+            return;
+        }
+
+        const { token, expiresAt } = this.createEmailVerificationToken();
+        const tokenUpdated = await this.authRepository.setEmailVerificationToken(user.id, token, expiresAt);
+
+        if (!tokenUpdated) {
+            return;
+        }
+
+        try {
+            await this.sendVerificationEmail({
+                email: user.email,
+                name: user.name,
+                token,
+            });
+        } catch (error: unknown) {
+            logger.error(
+                {
+                    error,
+                    userId: user.id,
+                    email: user.email,
+                },
+                'Failed to enqueue verification email resend',
+            );
+            throw new AppError({
+                message: 'Verification email could not be sent. Please try again.',
+                statusCode: HTTP_STATUS.SERVICE_UNAVAILABLE,
+                errorCode: ERROR_CODE.INTERNAL_SERVER_ERROR,
+            });
+        }
+    }
+
+    async verifyEmail(token: string): Promise<void> {
+        const isVerified = await this.authRepository.verifyEmail(token);
+
+        if (!isVerified) {
+            throw new ValidationError('Invalid or expired verification token');
+        }
     }
 
     /** Validates credentials/status and enforces a 5-session limit per user */
     async loginUser(data: LoginUserInput): Promise<LoginResult> {
-        const user = await this.authRepository.findByEmail(data.email);
+        const user = await this.authRepository.findUserByEmail(data.email);
 
-        this.assertUserIsActive(
-            user,
-            new AppError({
+        if (!user) {
+            throw new AppError({
                 message: 'Invalid email or password',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
-            }),
-        );
+            });
+        }
 
         const isPasswordValid = await argon2.verify(user.passwordHash, data.password);
 
@@ -71,6 +151,20 @@ export default class AuthService implements IAuthService {
                 message: 'Invalid email or password',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+            });
+        }
+
+        if (user.accountStatus !== ACCOUNT_STATUS.ACTIVE) {
+            const statusMessages = {
+                [ACCOUNT_STATUS.PENDING_VERIFICATION]: 'Please verify your email before logging in',
+                [ACCOUNT_STATUS.SUSPENDED]: 'User account is suspended',
+                [ACCOUNT_STATUS.BANNED]: 'User account is banned',
+            } as const;
+
+            throw new AppError({
+                message: statusMessages[user.accountStatus] ?? 'Access denied',
+                statusCode: HTTP_STATUS.FORBIDDEN,
+                errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
             });
         }
 
@@ -121,7 +215,7 @@ export default class AuthService implements IAuthService {
             id: user.id,
             email: user.email,
             roles: user.roles as UserRole[],
-            isActive: user.isActive,
+            accountStatus: user.accountStatus,
         });
 
         return { user, accessToken, refreshToken } satisfies LoginResult;
@@ -145,16 +239,15 @@ export default class AuthService implements IAuthService {
         // ── Remove old session from Redis ─────────────────────────────────────
         void sessionCache.delete(session.userId, session.id);
 
-        const user = await this.authRepository.findById(session.userId);
+        const user = await this.authRepository.findUserById(session.userId);
 
-        this.assertUserIsActive(
-            user,
-            new AppError({
+        if (user?.accountStatus !== ACCOUNT_STATUS.ACTIVE) {
+            throw new AppError({
                 message: 'Refresh token is invalid or has been revoked',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
                 errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
-            }),
-        );
+            });
+        }
 
         const refreshExpiryDays = Number(env.REFRESH_TOKEN_EXPIRES_IN_DAYS);
 

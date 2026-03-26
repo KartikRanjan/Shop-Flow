@@ -16,14 +16,14 @@
 
 import { redisService } from '@infrastructure/redis/redis.service';
 import { logger } from '@infrastructure/logger';
-import type { UserRole } from '@constants';
+import type { AccountStatus, UserRole } from '@constants';
 
 /** Minimal user state needed by the authentication middleware. */
 export type CachedUser = {
     id: string;
     email: string;
     roles: UserRole[];
-    isActive: boolean;
+    accountStatus: AccountStatus;
 };
 
 /** User state cache TTL — short enough for role changes to take effect quickly. */
@@ -65,7 +65,7 @@ export const userCache = {
 
     /**
      * Removes the user's cached state.
-     * Call this whenever a user's roles or `isActive` status changes
+     * Call this whenever a user's roles or account status changes
      * so that the next request re-fetches fresh data from the DB.
      */
     async invalidate(userId: string): Promise<boolean> {

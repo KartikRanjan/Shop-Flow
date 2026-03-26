@@ -5,10 +5,11 @@
  */
 
 import type { User, RefreshToken } from '../types';
-import type { LoginBodyInput, RegisterBodyInput } from '../validations';
+import type { LoginBodyInput, RegisterBodyInput, ResendVerificationEmailBodyInput } from '../validations';
 
 export type RegisterDto = RegisterBodyInput;
 export type LoginDto = LoginBodyInput;
+export type ResendVerificationEmailDto = ResendVerificationEmailBodyInput;
 
 export interface AuthUserDto {
     id: string;
@@ -16,9 +17,9 @@ export interface AuthUserDto {
     email: string;
     phoneNumber: string | null;
     roles: string[];
-    isActive: boolean;
-    isEmailVerified: boolean;
-    isPhoneVerified: boolean;
+    accountStatus: User['accountStatus'];
+    emailVerifiedAt: Date | null;
+    phoneVerifiedAt: Date | null;
     createdAt: Date;
     updatedAt: Date | null;
 }
@@ -29,9 +30,9 @@ export const toAuthUserDto = (user: User): AuthUserDto => ({
     email: user.email,
     phoneNumber: user.phoneNumber,
     roles: user.roles,
-    isActive: user.isActive,
-    isEmailVerified: user.isEmailVerified,
-    isPhoneVerified: user.isPhoneVerified,
+    accountStatus: user.accountStatus,
+    emailVerifiedAt: user.emailVerifiedAt,
+    phoneVerifiedAt: user.phoneVerifiedAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
 });

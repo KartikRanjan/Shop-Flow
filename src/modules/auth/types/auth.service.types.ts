@@ -26,9 +26,11 @@ export type RefreshResult = {
 
 export interface IAuthService {
     registerUser(data: RegisterUserInput): Promise<User>;
+    resendVerificationEmail(email: string): Promise<void>;
     loginUser(data: LoginUserInput): Promise<LoginResult>;
     refreshTokens(refreshToken: string): Promise<RefreshResult>;
     logout(userId: string, refreshToken: string): Promise<void>;
     logoutAll(userId: string): Promise<void>;
     getActiveSessions(userId: string): Promise<RefreshToken[]>;
+    verifyEmail(token: string): Promise<void>;
 }

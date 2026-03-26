@@ -6,13 +6,19 @@
 
 import { Router } from 'express';
 import { authController } from '../auth.module';
-import { loginRequestSchema, registerRequestSchema } from '../validations';
+import { loginRequestSchema, registerRequestSchema, resendVerificationEmailRequestSchema } from '../validations';
 import { validateRequest, authenticate } from '@middlewares';
 
 const router = Router();
 
+router.get('/verify-email', authController.verifyEmail);
 router.post('/login', validateRequest(loginRequestSchema), authController.login);
 router.post('/register', validateRequest(registerRequestSchema), authController.register);
+router.post(
+    '/resend-verification-email',
+    validateRequest(resendVerificationEmailRequestSchema),
+    authController.resendVerificationEmail,
+);
 router.post('/refresh', authController.refresh);
 router.delete('/logout', authenticate.all, authController.logout);
 router.delete('/logout-all', authenticate.all, authController.logoutAll);

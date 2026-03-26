@@ -22,17 +22,22 @@ export type RegisterInput = {
     email: string;
     name: string;
     passwordHash: string;
+    phoneNumber?: string | null;
+    emailVerificationToken?: string | null;
+    emailVerificationTokenExpiresAt?: Date | null;
 };
 
 /** Contract that the AuthRepository must satisfy */
 export interface IAuthRepository {
     register(data: RegisterInput): Promise<User>;
-    findByEmail(email: string): Promise<User | null>;
-    findById(id: string): Promise<User | null>;
+    findUserByEmail(email: string): Promise<User | null>;
+    findUserById(id: string): Promise<User | null>;
+    setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<boolean>;
     createRefreshSession(data: RefreshTokenInput): Promise<RefreshToken>;
     findRefreshSession(jti: string): Promise<RefreshToken | null>;
     consumeRefreshSession(jti: string): Promise<RefreshToken | null>;
     revokeRefreshSession(jti: string): Promise<void>;
     revokeAllUserSessions(userId: string): Promise<void>;
     findActiveSessionsByUser(userId: string): Promise<RefreshToken[]>;
+    verifyEmail(token: string): Promise<boolean>;
 }

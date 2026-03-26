@@ -8,7 +8,7 @@
 import request from 'supertest';
 import type { Express } from 'express';
 import createApp from '../../../../app';
-import { HTTP_STATUS, USER_ROLES } from '@constants';
+import { ACCOUNT_STATUS, HTTP_STATUS, USER_ROLES } from '@constants';
 import { AppError } from '@errors';
 
 // ─── Mock AuthService ─────────────────────────────────────────────────────────
@@ -19,11 +19,13 @@ import { AppError } from '@errors';
 jest.mock('../../auth.module', () => {
     const service = {
         registerUser: jest.fn(),
+        resendVerificationEmail: jest.fn(),
         loginUser: jest.fn(),
         refreshTokens: jest.fn(),
         logout: jest.fn(),
         logoutAll: jest.fn(),
         getActiveSessions: jest.fn(),
+        verifyEmail: jest.fn(),
     };
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const AuthController = (require('../../controllers/auth.controller') as { default: new (s: unknown) => unknown })
@@ -77,11 +79,13 @@ jest.mock('@config/env', () => ({
 
 type MockAuthService = {
     registerUser: jest.Mock;
+    resendVerificationEmail: jest.Mock;
     loginUser: jest.Mock;
     refreshTokens: jest.Mock;
     logout: jest.Mock;
     logoutAll: jest.Mock;
     getActiveSessions: jest.Mock;
+    verifyEmail: jest.Mock;
 };
 
 type MockAuthModule = { _mockService: MockAuthService };
@@ -94,9 +98,10 @@ const mockUser = {
     email: 'test@example.com',
     name: 'Test User',
     roles: [USER_ROLES.USER],
-    isActive: true,
-    isEmailVerified: false,
-    isPhoneVerified: false,
+    accountStatus: ACCOUNT_STATUS.PENDING_VERIFICATION,
+    statusUpdatedAt: new Date().toISOString(),
+    emailVerifiedAt: null,
+    phoneVerifiedAt: null,
     phoneNumber: null,
     passwordHash: 'hashed',
     createdAt: new Date().toISOString(),
@@ -173,6 +178,52 @@ describe('Auth Integration Tests', () => {
             const res = await request(app).post('/api/v1/auth/register').send(validPayload);
 
             expect(res.status).toBe(HTTP_STATUS.CONFLICT);
+        });
+    });
+
+    // ── POST /api/v1/auth/resend-verification-email ───────────────────────
+
+    describe('POST /api/v1/auth/resend-verification-email', () => {
+        it('should return 200 and a generic success message', async () => {
+            mockAuthService.resendVerificationEmail.mockResolvedValue(undefined);
+
+            const res = await request(app)
+                .post('/api/v1/auth/resend-verification-email')
+                .send({ email: 'test@example.com' });
+
+            expect(res.status).toBe(HTTP_STATUS.OK);
+            expect(mockAuthService.resendVerificationEmail).toHaveBeenCalledWith('test@example.com');
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            expect(res.body.success).toBe(true);
+        });
+
+        it('should return 400 when email is missing', async () => {
+            const res = await request(app).post('/api/v1/auth/resend-verification-email').send({});
+
+            expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
+            expect(mockAuthService.resendVerificationEmail).not.toHaveBeenCalled();
+        });
+
+        it('should return 400 when email is invalid', async () => {
+            const res = await request(app).post('/api/v1/auth/resend-verification-email').send({ email: 'bad-email' });
+
+            expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
+            expect(mockAuthService.resendVerificationEmail).not.toHaveBeenCalled();
+        });
+
+        it('should return 503 when resending the verification email fails', async () => {
+            mockAuthService.resendVerificationEmail.mockRejectedValue(
+                new AppError({
+                    message: 'Verification email could not be sent. Please try again.',
+                    statusCode: HTTP_STATUS.SERVICE_UNAVAILABLE,
+                }),
+            );
+
+            const res = await request(app)
+                .post('/api/v1/auth/resend-verification-email')
+                .send({ email: 'test@example.com' });
+
+            expect(res.status).toBe(HTTP_STATUS.SERVICE_UNAVAILABLE);
         });
     });
 
@@ -331,6 +382,41 @@ describe('Auth Integration Tests', () => {
             expect(res.status).toBe(HTTP_STATUS.OK);
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             expect(res.body.data).toHaveLength(0);
+        });
+    });
+
+    // ── GET /api/v1/auth/verify-email ──────────────────────────────────────
+
+    describe('GET /api/v1/auth/verify-email', () => {
+        it('should return 200 and success message when token is valid', async () => {
+            mockAuthService.verifyEmail.mockResolvedValue(undefined);
+
+            const res = await request(app).get('/api/v1/auth/verify-email').query({ token: 'valid-token' });
+
+            expect(res.status).toBe(HTTP_STATUS.OK);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            expect(res.body.success).toBe(true);
+            expect(mockAuthService.verifyEmail).toHaveBeenCalledWith('valid-token');
+        });
+
+        it('should return 400 when token is missing', async () => {
+            const res = await request(app).get('/api/v1/auth/verify-email');
+
+            expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
+            expect(mockAuthService.verifyEmail).not.toHaveBeenCalled();
+        });
+
+        it('should return 400 when token is invalid or expired', async () => {
+            mockAuthService.verifyEmail.mockRejectedValue(
+                new AppError({
+                    message: 'Invalid or expired verification token',
+                    statusCode: HTTP_STATUS.BAD_REQUEST,
+                }),
+            );
+
+            const res = await request(app).get('/api/v1/auth/verify-email').query({ token: 'invalid-token' });
+
+            expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
         });
     });
 });

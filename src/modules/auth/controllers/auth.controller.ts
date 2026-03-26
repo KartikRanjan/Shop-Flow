@@ -8,7 +8,7 @@ import type { Request, Response } from 'express';
 import { AUTH_COOKIE_PATH, ERROR_CODE, HTTP_STATUS } from '@constants';
 import { successResponse } from '@utils';
 import { toAuthUserDto, toSessionDto } from '../dto';
-import type { registerRequestSchema, loginRequestSchema } from '../validations';
+import type { registerRequestSchema, loginRequestSchema, resendVerificationEmailRequestSchema } from '../validations';
 import type { IAuthService } from '../types';
 import type { TypedRequest } from '@types';
 import { AppError } from '@errors';
@@ -23,6 +23,14 @@ export default class AuthController {
         return res
             .status(HTTP_STATUS.CREATED)
             .json(successResponse(toAuthUserDto(newUser), 'User registered successfully'));
+    };
+
+    /** Resend email verification instructions */
+    resendVerificationEmail = async (req: TypedRequest<typeof resendVerificationEmailRequestSchema>, res: Response) => {
+        await this.authService.resendVerificationEmail(req.body.email);
+        return res
+            .status(HTTP_STATUS.OK)
+            .json(successResponse(null, 'If an account exists, a verification email will be sent'));
     };
 
     /** Authenticate user and issue tokens */
@@ -117,5 +125,21 @@ export default class AuthController {
         return res
             .status(HTTP_STATUS.OK)
             .json(successResponse(sessions.map(toSessionDto), 'Active sessions retrieved successfully'));
+    };
+
+    /** Verify user email address */
+    verifyEmail = async (req: Request, res: Response) => {
+        const { token } = req.query;
+
+        if (typeof token !== 'string') {
+            throw new AppError({
+                message: 'Invalid verification token',
+                statusCode: HTTP_STATUS.BAD_REQUEST,
+                errorCode: ERROR_CODE.VALIDATION_ERROR,
+            });
+        }
+
+        await this.authService.verifyEmail(token);
+        return res.status(HTTP_STATUS.OK).json(successResponse(null, 'Email verified successfully'));
     };
 }

@@ -25,13 +25,23 @@ export const loginBodySchema = z.object({
     device: z.string().optional(),
 });
 
+/**
+ * Schema for resending a verification email.
+ */
+export const resendVerificationEmailBodySchema = z.object({
+    email: z.string().trim().toLowerCase().email('Invalid email address'),
+});
+
 // Full request schemas for middleware validation
 export const registerRequestSchema = z.object({ body: registerBodySchema });
 export const loginRequestSchema = z.object({ body: loginBodySchema });
+export const resendVerificationEmailRequestSchema = z.object({ body: resendVerificationEmailBodySchema });
 
 // Types inferred from the schemas
 export type RegisterBodyInput = z.infer<typeof registerBodySchema>;
 export type LoginBodyInput = z.infer<typeof loginBodySchema>;
+export type ResendVerificationEmailBodyInput = z.infer<typeof resendVerificationEmailBodySchema>;
 
 export type RegisterRequestInput = z.infer<typeof registerRequestSchema>;
 export type LoginRequestInput = z.infer<typeof loginRequestSchema>;
+export type ResendVerificationEmailRequestInput = z.infer<typeof resendVerificationEmailRequestSchema>;
