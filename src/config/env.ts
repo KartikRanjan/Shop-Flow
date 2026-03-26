@@ -10,14 +10,22 @@ const envSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().default(3000),
 
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.url(),
 
-    CLIENT_URL: z.string().url().default('http://localhost:3000'),
+    CLIENT_URL: z.url().default('http://localhost:3000'),
 
     REDIS_HOST: z.string().default('localhost'),
     REDIS_PORT: z.coerce.number().default(6379),
     REDIS_PASSWORD: z.string().optional(),
     REDIS_KEY_PREFIX: z.string().optional().default('shopflow:'),
+
+    SMTP_HOST: z.string().default('localhost'),
+    SMTP_PORT: z.coerce.number().default(1025), // Default for Mailhog
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_FROM: z.string().default('ShopFlow <noreply@shopflow.com>'),
+
+    APP_URL: z.string().default('http://localhost:3000'),
 
     JWT_ACCESS_SECRET: z.string().min(16),
     JWT_REFRESH_SECRET: z.string().min(16),
