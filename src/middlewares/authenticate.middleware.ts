@@ -14,7 +14,7 @@
 
 import { extractAndVerifyAccessToken } from '@utils';
 import { AppError } from '@errors';
-import { ERROR_CODE, HTTP_STATUS, USER_ROLES, type UserRole } from '@constants';
+import { ACCOUNT_STATUS, ERROR_CODE, HTTP_STATUS, USER_ROLES, type UserRole } from '@constants';
 import { db } from '@infrastructure/database';
 import { refreshSessions } from '@modules/auth/models/auth.model';
 import { usersTable } from '@modules/users/models/user.model';
@@ -90,7 +90,7 @@ const resolveSession = async (sessionId: string, userId: string) => {
 };
 
 /**
- * Resolves the user for `userId`, checking active status.
+ * Resolves the user for `userId`.
  * Tries Redis first; falls back to DB and repopulates the cache on a miss.
  */
 const resolveUser = async (userId: string): Promise<CachedUser | null> => {
@@ -109,10 +109,10 @@ const resolveUser = async (userId: string): Promise<CachedUser | null> => {
             id: usersTable.id,
             email: usersTable.email,
             roles: usersTable.roles,
-            isActive: usersTable.isActive,
+            accountStatus: usersTable.accountStatus,
         })
         .from(usersTable)
-        .where(and(eq(usersTable.id, userId), eq(usersTable.isActive, true), isNull(usersTable.deletedAt)))
+        .where(and(eq(usersTable.id, userId), isNull(usersTable.deletedAt)))
         .limit(1);
 
     const user = rows[0];
@@ -122,7 +122,7 @@ const resolveUser = async (userId: string): Promise<CachedUser | null> => {
         id: user.id,
         email: user.email,
         roles: user.roles as UserRole[],
-        isActive: user.isActive,
+        accountStatus: user.accountStatus,
     };
 
     // ── 3. Repopulate Redis ───────────────────────────────────────────────────
@@ -164,11 +164,25 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
     // ── Step 3: Validate user (Redis → DB) ───────────────────────────────────
     const user = await resolveUser(payload.sub);
 
-    if (!user?.isActive) {
+    if (!user) {
         throw new AppError({
             message: 'Invalid or expired access token',
             statusCode: HTTP_STATUS.UNAUTHORIZED,
             errorCode: ERROR_CODE.AUTHENTICATION_ERROR,
+        });
+    }
+
+    if (user.accountStatus !== ACCOUNT_STATUS.ACTIVE) {
+        const statusMessages = {
+            [ACCOUNT_STATUS.PENDING_VERIFICATION]: 'Please verify your email', // Defense-in-depth check: re-validate user verification at middleware level.
+            [ACCOUNT_STATUS.SUSPENDED]: 'User account is suspended',
+            [ACCOUNT_STATUS.BANNED]: 'User account is banned',
+        } as const;
+
+        throw new AppError({
+            message: statusMessages[user.accountStatus] ?? 'Access denied',
+            statusCode: HTTP_STATUS.FORBIDDEN,
+            errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
         });
     }
 

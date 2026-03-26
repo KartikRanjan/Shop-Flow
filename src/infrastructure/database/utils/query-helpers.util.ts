@@ -36,7 +36,7 @@ export const andExists = (...conditions: (SQL | undefined | null)[]): SQL | unde
  * @param value The value to match.
  * @returns Combined SQL condition.
  */
-export const findUniqueNotDeleted = (table: SoftDeletableTable, column: SQLWrapper, value: any): SQL => {
+export const findUniqueNotDeleted = (table: SoftDeletableTable, column: SQLWrapper, value: unknown): SQL => {
     const condition = and(eq(column, value), notDeleted(table));
     if (!condition) {
         throw new Error('Failed to create condition for findUniqueNotDeleted');
