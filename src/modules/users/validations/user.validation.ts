@@ -12,7 +12,6 @@ export const baseRequestSchema = z.object({});
 const userBodySchema = z.object({
     name: z.string().optional(),
     phoneNumber: z.string().optional(),
-    email: z.email().optional(),
 });
 
 export const updateMeRequestSchema = z

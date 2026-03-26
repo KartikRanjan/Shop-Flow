@@ -12,9 +12,11 @@ export interface UserDetailsDto {
     email: string;
     phoneNumber: string | null;
     roles: string[];
-    isActive: boolean;
-    isEmailVerified: boolean;
-    isPhoneVerified: boolean;
+    accountStatus: User['accountStatus'];
+    statusUpdatedAt: Date;
+    statusReason: string | null;
+    emailVerifiedAt: Date | null;
+    phoneVerifiedAt: Date | null;
     createdAt: Date;
     updatedAt: Date | null;
 }
@@ -25,9 +27,11 @@ export const toUserDetailsDto = (user: User): UserDetailsDto => ({
     email: user.email,
     phoneNumber: user.phoneNumber,
     roles: user.roles,
-    isActive: user.isActive,
-    isEmailVerified: user.isEmailVerified,
-    isPhoneVerified: user.isPhoneVerified,
+    accountStatus: user.accountStatus,
+    statusUpdatedAt: user.statusUpdatedAt,
+    statusReason: user.statusReason,
+    emailVerifiedAt: user.emailVerifiedAt,
+    phoneVerifiedAt: user.phoneVerifiedAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
 });

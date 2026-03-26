@@ -6,7 +6,7 @@
 
 import { NotFoundError, ValidationError } from '@errors';
 import type { UserRepository } from '../repositories';
-import type { User } from '../types';
+import type { UpdateProfileInput } from '../types';
 import type { PaginationOptions } from '@types';
 import { toUserDetailsDto } from '../dto';
 import { userCache } from '@modules/auth/cache/user.cache';
@@ -27,7 +27,7 @@ export default class UserService {
         return await this.userRepository.findByEmail(email);
     }
 
-    async updateProfileById(id: string, data: Partial<User>) {
+    async updateProfileById(id: string, data: UpdateProfileInput) {
         if (!data || Object.keys(data).length === 0) {
             throw new ValidationError('No fields provided to update');
         }
