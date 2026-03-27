@@ -5,10 +5,11 @@
  */
 
 export default class DatabaseError extends Error {
-    // `cause` is handled by native Error in modern Node.js
+    public readonly cause?: unknown;
 
     constructor(message: string, cause?: unknown) {
         super(message, { cause });
+        this.cause = cause;
         this.name = 'DatabaseError';
 
         // Restore prototype chain when extending built-in types

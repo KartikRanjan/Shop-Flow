@@ -23,6 +23,15 @@ export const errorHandler = (err: Error | AppError, req: Request, res: Response,
 
     // Known infrastructure error — log internally, never expose SQL/internals to client
     if (err instanceof DatabaseError) {
+        const cause = err.cause as { code?: string };
+
+        // Handle unique constraint violations (e.g., duplicate email) as 409 Conflict
+        if (cause?.code === '23505') {
+            return res
+                .status(HTTP_STATUS.CONFLICT)
+                .json(errorResponse('Resource already exists', ERROR_CODE.RESOURCE_ALREADY_EXISTS));
+        }
+
         const stack = env.NODE_ENV === 'production' ? undefined : err.stack;
         return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
             ...errorResponse('Internal Server Error', ERROR_CODE.INTERNAL_SERVER_ERROR),
