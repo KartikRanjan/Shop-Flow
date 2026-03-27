@@ -7,6 +7,7 @@
 
 import type { InferSelectModel } from 'drizzle-orm';
 import type { refreshSessions, users } from '@infrastructure/database/schema';
+import type { ITransactionalRepository } from '@infrastructure/database/repositories/repository.types';
 
 export type User = InferSelectModel<typeof users>;
 export type RefreshToken = InferSelectModel<typeof refreshSessions>;
@@ -28,7 +29,7 @@ export type RegisterInput = {
 };
 
 /** Contract that the AuthRepository must satisfy */
-export interface IAuthRepository {
+export interface IAuthRepository extends ITransactionalRepository<IAuthRepository> {
     register(data: RegisterInput): Promise<User>;
     findUserByEmail(email: string): Promise<User | null>;
     findUserById(id: string): Promise<User | null>;

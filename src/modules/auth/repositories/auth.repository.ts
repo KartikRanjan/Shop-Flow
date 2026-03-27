@@ -12,8 +12,12 @@ import { ACCOUNT_STATUS } from '@constants';
 import type { IAuthRepository, RefreshToken, RefreshTokenInput, RegisterInput, User } from '../types';
 
 export default class AuthRepository extends BaseRepository implements IAuthRepository {
-    constructor(private readonly db: Database) {
-        super();
+    constructor(db: Database) {
+        super(db);
+    }
+
+    protected createInstance(db: Database): this {
+        return new AuthRepository(db) as this;
     }
 
     async register(data: RegisterInput): Promise<User> {

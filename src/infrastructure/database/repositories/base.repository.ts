@@ -9,9 +9,29 @@ import { logger } from '@infrastructure/logger';
 import type { PaginatedResult } from '@types';
 import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '@constants';
 import { DatabaseError } from '@errors';
+import type { Database } from '../index';
 
-export class BaseRepository {
+export abstract class BaseRepository {
     protected logger = logger;
+
+    constructor(protected readonly db: Database) {}
+
+    /**
+     * Creates a new instance of the repository with a specific database/transaction client.
+     * Must be implemented by child classes to support the generic transaction method.
+     */
+    protected abstract createInstance(db: Database): this;
+
+    /**
+     * Executes a callback within a database transaction, wrapping the transaction
+     * in a new repository instance to maintain type safety and interface consistency.
+     */
+    async transaction<T>(callback: (txRepo: this) => Promise<T>): Promise<T> {
+        return this.db.transaction(async (tx) => {
+            const txRepo = this.createInstance(tx as unknown as Database);
+            return callback(txRepo);
+        });
+    }
 
     protected async execute<T>(params: { operation: () => Promise<T>; context?: string }): Promise<T> {
         const { operation, context } = params;

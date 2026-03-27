@@ -8,10 +8,11 @@
 import type { InferSelectModel } from 'drizzle-orm';
 import type { users } from '@infrastructure/database/schema';
 import type { PaginatedResult, PaginationOptions } from '@types';
+import type { ITransactionalRepository } from '@infrastructure/database/repositories/repository.types';
 
 export type User = InferSelectModel<typeof users>;
 
-export interface IUserRepository {
+export interface IUserRepository extends ITransactionalRepository<IUserRepository> {
     findById(id: string): Promise<User | null>;
     findByEmail(email: string): Promise<User | null>;
     updateById(id: string, data: Partial<User>): Promise<User | null>;

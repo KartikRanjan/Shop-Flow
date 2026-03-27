@@ -7,8 +7,12 @@ import type { PaginatedResult, PaginationOptions } from '@types';
 import { findUniqueNotDeleted, notDeleted } from '@infrastructure/database/utils/query-helpers.util';
 
 export default class UserRepository extends BaseRepository implements IUserRepository {
-    constructor(private readonly db: Database) {
-        super();
+    constructor(db: Database) {
+        super(db);
+    }
+
+    protected createInstance(db: Database): this {
+        return new UserRepository(db) as this;
     }
 
     async findById(id: string): Promise<User | null> {
