@@ -213,47 +213,29 @@ const handleAuth = async (req: Request, roles: UserRole[]) => {
     };
 };
 
-// ─── Exported middleware ──────────────────────────────────────────────────────
+/**
+ * Middleware factory to require specific roles for authorization
+ * @param { UserRole[]} allowedRoles - Array of roles allowed to access the route
+ */
+
+const hasRoles = (allowedRoles: UserRole[]) => async (req: Request, _res: Response, next: NextFunction) => {
+    try {
+        await handleAuth(req, allowedRoles);
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─── Exported Middleware Object ───────────────────────────────────────────────
 
 export const authenticate = {
-    /**
-     * Middleware to require specific roles for authorization
-     * @param {UserRole[]} allowedRoles - Array of roles allowed to access the route
-     */
-    hasRoles: (allowedRoles: UserRole[]) => async (req: Request, _res: Response, next: NextFunction) => {
-        try {
-            await handleAuth(req, allowedRoles);
-            next();
-        } catch (error) {
-            next(error);
-        }
-    },
-
-    all: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles(Object.values(USER_ROLES) as UserRole[])(req, res, next);
-    },
-
-    user: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles([USER_ROLES.USER])(req, res, next);
-    },
-
-    admin: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles([USER_ROLES.ADMIN])(req, res, next);
-    },
-
-    seller: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles([USER_ROLES.SELLER])(req, res, next);
-    },
-
-    userAndAdmin: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles([USER_ROLES.USER, USER_ROLES.ADMIN])(req, res, next);
-    },
-
-    userAndSeller: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles([USER_ROLES.USER, USER_ROLES.SELLER])(req, res, next);
-    },
-
-    adminAndSeller: async (req: Request, res: Response, next: NextFunction) => {
-        await authenticate.hasRoles([USER_ROLES.ADMIN, USER_ROLES.SELLER])(req, res, next);
-    },
+    hasRoles,
+    all: hasRoles(Object.values(USER_ROLES) as UserRole[]),
+    user: hasRoles([USER_ROLES.USER]),
+    admin: hasRoles([USER_ROLES.ADMIN]),
+    seller: hasRoles([USER_ROLES.SELLER]),
+    userAndAdmin: hasRoles([USER_ROLES.USER, USER_ROLES.ADMIN]),
+    userAndSeller: hasRoles([USER_ROLES.USER, USER_ROLES.SELLER]),
+    adminAndSeller: hasRoles([USER_ROLES.ADMIN, USER_ROLES.SELLER]),
 };
