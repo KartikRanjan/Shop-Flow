@@ -90,6 +90,9 @@ describe('AuthService', () => {
             revokeAllUserSessions: jest.fn(),
             findActiveSessionsByUser: jest.fn(),
             verifyEmail: jest.fn(),
+            transaction: jest
+                .fn()
+                .mockImplementation(<T>(cb: (tx: IAuthRepository) => Promise<T>): Promise<T> => cb(mockAuthRepository)),
         } as jest.Mocked<IAuthRepository>;
 
         authService = new AuthService(mockAuthRepository);
@@ -168,7 +171,30 @@ describe('AuthService', () => {
             expect(emailService.enqueueVerificationEmail).not.toHaveBeenCalled();
         });
 
-        it('should refresh the verification token and enqueue an email for an unverified user', async () => {
+        it('should reuse an existing valid verification token and enqueue an email', async () => {
+            const unexpiredTokenUser = {
+                ...mockUser,
+                emailVerificationToken: 'existing-token',
+                emailVerificationTokenExpiresAt: new Date(Date.now() + 60_000),
+            };
+            mockAuthRepository.findUserByEmail.mockResolvedValue(unexpiredTokenUser);
+
+            await expect(authService.resendVerificationEmail(mockUser.email)).resolves.not.toThrow();
+
+            expect(mockAuthRepository.setEmailVerificationToken).not.toHaveBeenCalled();
+            const resendEmailCall: Parameters<typeof emailService.enqueueVerificationEmail>[0] | undefined =
+                jest.mocked(emailService.enqueueVerificationEmail).mock.calls[0]?.[0];
+
+            expect(resendEmailCall).toEqual(
+                expect.objectContaining({
+                    to: mockUser.email,
+                    name: mockUser.name,
+                    verificationUrl: expect.stringContaining('token=existing-token') as string,
+                }),
+            );
+        });
+
+        it('should create a new verification token and enqueue an email when the current token is missing', async () => {
             mockAuthRepository.findUserByEmail.mockResolvedValue(mockUser);
             mockAuthRepository.setEmailVerificationToken.mockResolvedValue(true);
 
@@ -191,25 +217,48 @@ describe('AuthService', () => {
             );
         });
 
-        it('should return successfully when the verification token cannot be updated', async () => {
-            mockAuthRepository.findUserByEmail.mockResolvedValue(mockUser);
-            mockAuthRepository.setEmailVerificationToken.mockResolvedValue(false);
+        it('should create a new verification token and enqueue an email when the current token is expired', async () => {
+            const expiredTokenUser = {
+                ...mockUser,
+                emailVerificationToken: 'expired-token',
+                emailVerificationTokenExpiresAt: new Date(Date.now() - 60_000),
+            };
+            mockAuthRepository.findUserByEmail.mockResolvedValue(expiredTokenUser);
+            mockAuthRepository.setEmailVerificationToken.mockResolvedValue(true);
 
             await expect(authService.resendVerificationEmail(mockUser.email)).resolves.not.toThrow();
 
+            expect(mockAuthRepository.setEmailVerificationToken).toHaveBeenCalledWith(
+                mockUser.id,
+                expect.any(String),
+                expect.any(Date),
+            );
+            const resendEmailCall: Parameters<typeof emailService.enqueueVerificationEmail>[0] | undefined =
+                jest.mocked(emailService.enqueueVerificationEmail).mock.calls[0]?.[0];
+
+            expect(resendEmailCall).toEqual(
+                expect.objectContaining({
+                    to: mockUser.email,
+                    name: mockUser.name,
+                    verificationUrl: expect.not.stringContaining('token=expired-token') as string,
+                }),
+            );
+        });
+
+        it('should return successfully (silent fail) when the verification token cannot be updated', async () => {
+            mockAuthRepository.findUserByEmail.mockResolvedValue(mockUser);
+            mockAuthRepository.setEmailVerificationToken.mockResolvedValue(false);
+
+            await expect(authService.resendVerificationEmail(mockUser.email)).resolves.toBeUndefined();
             expect(emailService.enqueueVerificationEmail).not.toHaveBeenCalled();
         });
 
-        it('should return a service unavailable error when the resend enqueue fails', async () => {
+        it('should return successfully (silent fail) when the resend enqueue fails', async () => {
             mockAuthRepository.findUserByEmail.mockResolvedValue(mockUser);
             mockAuthRepository.setEmailVerificationToken.mockResolvedValue(true);
             (emailService.enqueueVerificationEmail as jest.Mock).mockRejectedValueOnce(new Error('queue unavailable'));
 
-            await expect(authService.resendVerificationEmail(mockUser.email)).rejects.toMatchObject({
-                statusCode: HTTP_STATUS.SERVICE_UNAVAILABLE,
-                errorCode: ERROR_CODE.INTERNAL_SERVER_ERROR,
-                message: 'Verification email could not be sent. Please try again.',
-            });
+            await expect(authService.resendVerificationEmail(mockUser.email)).resolves.toBeUndefined();
         });
     });
 

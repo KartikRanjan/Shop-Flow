@@ -36,6 +36,21 @@ export default class AuthService implements IAuthService {
         };
     }
 
+    private getReusableEmailVerificationToken(user: User): { token: string; expiresAt: Date } | null {
+        if (!user.emailVerificationToken || !user.emailVerificationTokenExpiresAt) {
+            return null;
+        }
+
+        if (user.emailVerificationTokenExpiresAt <= new Date()) {
+            return null;
+        }
+
+        return {
+            token: user.emailVerificationToken,
+            expiresAt: user.emailVerificationTokenExpiresAt,
+        };
+    }
+
     private async sendVerificationEmail(params: { email: string; name: string; token: string }): Promise<void> {
         const { email, name, token } = params;
 
@@ -88,39 +103,49 @@ export default class AuthService implements IAuthService {
     }
 
     async resendVerificationEmail(email: string): Promise<void> {
-        const user = await this.authRepository.findUserByEmail(email);
-
-        if (!user || user.emailVerifiedAt) {
-            return;
-        }
-
-        const { token, expiresAt } = this.createEmailVerificationToken();
-        const tokenUpdated = await this.authRepository.setEmailVerificationToken(user.id, token, expiresAt);
-
-        if (!tokenUpdated) {
-            return;
-        }
-
         try {
+            const user = await this.authRepository.findUserByEmail(email);
+
+            // Silent return for non-existent or already verified users to prevent enumeration
+            if (!user || user.emailVerifiedAt) {
+                return;
+            }
+
+            const reusableToken = this.getReusableEmailVerificationToken(user);
+            let tokenToSend = reusableToken?.token;
+
+            if (!tokenToSend) {
+                const { token, expiresAt } = this.createEmailVerificationToken();
+
+                // Persist a new token only when there is no valid stored token to reuse.
+                const tokenUpdated = await this.authRepository.setEmailVerificationToken(user.id, token, expiresAt);
+
+                if (!tokenUpdated) {
+                    logger.warn(
+                        { userId: user.id, email: user.email },
+                        'Verification email token update failed (user may have been verified or deleted)',
+                    );
+                    return;
+                }
+
+                tokenToSend = token;
+            }
+
             await this.sendVerificationEmail({
                 email: user.email,
                 name: user.name,
-                token,
+                token: tokenToSend,
             });
         } catch (error: unknown) {
             logger.error(
                 {
                     error,
-                    userId: user.id,
-                    email: user.email,
+                    email,
                 },
-                'Failed to enqueue verification email resend',
+                'Failed to resend verification email',
             );
-            throw new AppError({
-                message: 'Verification email could not be sent. Please try again.',
-                statusCode: HTTP_STATUS.SERVICE_UNAVAILABLE,
-                errorCode: ERROR_CODE.INTERNAL_SERVER_ERROR,
-            });
+            // Always return normally to the controller to preserve anti-enumeration behavior.
+            return;
         }
     }
 

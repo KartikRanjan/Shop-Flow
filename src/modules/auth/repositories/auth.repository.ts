@@ -65,6 +65,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     .where(
                         and(
                             eq(users.emailVerificationToken, token),
+                            eq(users.accountStatus, ACCOUNT_STATUS.PENDING_VERIFICATION),
                             isNull(users.deletedAt),
                             isNotNull(users.emailVerificationTokenExpiresAt),
                             gt(users.emailVerificationTokenExpiresAt, new Date()),
