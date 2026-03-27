@@ -25,4 +25,9 @@ export interface EnqueueEmailOptions {
 
 export type DeadLetterEmailJobData = DeadLetterJob<EmailJobData>;
 
+export interface DeadLetterEmailJobResponse {
+    id: string;
+    data: DeadLetterEmailJobData;
+}
+
 export const parseEmailJobData = (data: unknown): EmailJobData => emailJobDataSchema.parse(data);
