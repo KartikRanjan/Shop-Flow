@@ -33,6 +33,8 @@ export const usersTable = pgTable(
         emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
         emailVerificationToken: varchar('email_verification_token', { length: 255 }),
         emailVerificationTokenExpiresAt: timestamp('email_verification_token_expires_at', { withTimezone: true }),
+        passwordResetToken: varchar('password_reset_token', { length: 255 }),
+        passwordResetTokenExpiresAt: timestamp('password_reset_token_expires_at', { withTimezone: true }),
         phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
         updatedAt: timestamp('updated_at', { withTimezone: true })

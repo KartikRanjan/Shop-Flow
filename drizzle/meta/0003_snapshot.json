@@ -1,0 +1,264 @@
+{
+    "id": "c1492c25-42c6-4dc0-93fc-6ca38f98658c",
+    "prevId": "83d94f84-1beb-4729-95f1-b67381036ccb",
+    "version": "7",
+    "dialect": "postgresql",
+    "tables": {
+        "public.users": {
+            "name": "users",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "name": {
+                    "name": "name",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "email": {
+                    "name": "email",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "phone_number": {
+                    "name": "phone_number",
+                    "type": "varchar(20)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "password_hash": {
+                    "name": "password_hash",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "roles": {
+                    "name": "roles",
+                    "type": "user_roles[]",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'{\"user\"}'"
+                },
+                "account_status": {
+                    "name": "account_status",
+                    "type": "account_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending_verification'"
+                },
+                "status_updated_at": {
+                    "name": "status_updated_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "status_reason": {
+                    "name": "status_reason",
+                    "type": "varchar(500)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "email_verified_at": {
+                    "name": "email_verified_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "email_verification_token": {
+                    "name": "email_verification_token",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "email_verification_token_expires_at": {
+                    "name": "email_verification_token_expires_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "password_reset_token": {
+                    "name": "password_reset_token",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "password_reset_token_expires_at": {
+                    "name": "password_reset_token_expires_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "phone_verified_at": {
+                    "name": "phone_verified_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false,
+                    "default": "now()"
+                },
+                "deleted_at": {
+                    "name": "deleted_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                }
+            },
+            "indexes": {
+                "unique_active_email_idx": {
+                    "name": "unique_active_email_idx",
+                    "columns": [
+                        {
+                            "expression": "email",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "where": "\"deleted_at\" IS NULL",
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "unique_active_phone_idx": {
+                    "name": "unique_active_phone_idx",
+                    "columns": [
+                        {
+                            "expression": "phone_number",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "where": "\"deleted_at\" IS NULL AND \"phone_number\" IS NOT NULL",
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.refresh_sessions": {
+            "name": "refresh_sessions",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "uuid",
+                    "primaryKey": true,
+                    "notNull": true,
+                    "default": "gen_random_uuid()"
+                },
+                "user_id": {
+                    "name": "user_id",
+                    "type": "uuid",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "expires_at": {
+                    "name": "expires_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "revoked_at": {
+                    "name": "revoked_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "device": {
+                    "name": "device",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "ip": {
+                    "name": "ip",
+                    "type": "varchar(255)",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "user_agent": {
+                    "name": "user_agent",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp with time zone",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "refresh_sessions_user_id_users_id_fk": {
+                    "name": "refresh_sessions_user_id_users_id_fk",
+                    "tableFrom": "refresh_sessions",
+                    "tableTo": "users",
+                    "columnsFrom": ["user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        }
+    },
+    "enums": {
+        "public.account_status": {
+            "name": "account_status",
+            "schema": "public",
+            "values": ["pending_verification", "active", "suspended", "banned"]
+        },
+        "public.user_roles": {
+            "name": "user_roles",
+            "schema": "public",
+            "values": ["user", "admin", "super_admin", "seller"]
+        }
+    },
+    "schemas": {},
+    "sequences": {},
+    "roles": {},
+    "policies": {},
+    "views": {},
+    "_meta": {
+        "columns": {},
+        "schemas": {},
+        "tables": {}
+    }
+}

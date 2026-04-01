@@ -29,6 +29,8 @@ export class UserEntity {
     readonly emailVerifiedAt: Date | null;
     readonly emailVerificationToken: string | null;
     readonly emailVerificationTokenExpiresAt: Date | null;
+    readonly passwordResetToken: string | null;
+    readonly passwordResetTokenExpiresAt: Date | null;
     readonly phoneVerifiedAt: Date | null;
     readonly createdAt: Date;
     readonly updatedAt: Date | null;
@@ -47,6 +49,8 @@ export class UserEntity {
         this.emailVerifiedAt = row.emailVerifiedAt;
         this.emailVerificationToken = row.emailVerificationToken;
         this.emailVerificationTokenExpiresAt = row.emailVerificationTokenExpiresAt;
+        this.passwordResetToken = row.passwordResetToken;
+        this.passwordResetTokenExpiresAt = row.passwordResetTokenExpiresAt;
         this.phoneVerifiedAt = row.phoneVerifiedAt;
         this.createdAt = row.createdAt;
         this.updatedAt = row.updatedAt;
@@ -113,6 +117,27 @@ export class UserEntity {
         };
     }
 
+    // ── Password Reset Token Logic ─────────────────────────────────────────────
+
+    /**
+     * Returns the existing reset token if it is still valid (not expired),
+     * or null if a new token needs to be generated and persisted.
+     */
+    getReusableResetToken(): { token: string; expiresAt: Date } | null {
+        if (!this.passwordResetToken || !this.passwordResetTokenExpiresAt) {
+            return null;
+        }
+
+        if (this.passwordResetTokenExpiresAt <= new Date()) {
+            return null;
+        }
+
+        return {
+            token: this.passwordResetToken,
+            expiresAt: this.passwordResetTokenExpiresAt,
+        };
+    }
+
     // ── Serialisation ──────────────────────────────────────────────────────────
 
     /** Returns the plain row representation — useful when passing to infrastructure layers. */
@@ -130,6 +155,8 @@ export class UserEntity {
             emailVerifiedAt: this.emailVerifiedAt,
             emailVerificationToken: this.emailVerificationToken,
             emailVerificationTokenExpiresAt: this.emailVerificationTokenExpiresAt,
+            passwordResetToken: this.passwordResetToken,
+            passwordResetTokenExpiresAt: this.passwordResetTokenExpiresAt,
             phoneVerifiedAt: this.phoneVerifiedAt,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
