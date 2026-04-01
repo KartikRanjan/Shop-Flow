@@ -13,9 +13,7 @@ import type {
     LoginResult,
     LoginUserInput,
     RefreshResult,
-    RefreshToken,
     RegisterUserInput,
-    User,
 } from '../types';
 import { env } from '@config/env';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils';
@@ -25,6 +23,8 @@ import type { UserRole } from '@constants';
 import crypto from 'crypto';
 import { emailService } from '@infrastructure/email/email.service';
 import { logger } from '@infrastructure/logger';
+import type { UserEntity } from '@modules/users';
+import type { RefreshSessionEntity } from '../entities';
 
 export default class AuthService implements IAuthService {
     constructor(private readonly authRepository: IAuthRepository) {}
@@ -33,21 +33,6 @@ export default class AuthService implements IAuthService {
         return {
             token: crypto.randomBytes(32).toString('hex'),
             expiresAt: new Date(Date.now() + DAY_MS),
-        };
-    }
-
-    private getReusableEmailVerificationToken(user: User): { token: string; expiresAt: Date } | null {
-        if (!user.emailVerificationToken || !user.emailVerificationTokenExpiresAt) {
-            return null;
-        }
-
-        if (user.emailVerificationTokenExpiresAt <= new Date()) {
-            return null;
-        }
-
-        return {
-            token: user.emailVerificationToken,
-            expiresAt: user.emailVerificationTokenExpiresAt,
         };
     }
 
@@ -62,7 +47,7 @@ export default class AuthService implements IAuthService {
     }
 
     /** Ensures email uniqueness and hashes password before user creation */
-    async registerUser(data: RegisterUserInput): Promise<User> {
+    async registerUser(data: RegisterUserInput): Promise<UserEntity> {
         const existingUser = await this.authRepository.findUserByEmail(data.email);
 
         if (existingUser) {
@@ -107,11 +92,11 @@ export default class AuthService implements IAuthService {
             const user = await this.authRepository.findUserByEmail(email);
 
             // Silent return for non-existent or already verified users to prevent enumeration
-            if (!user || user.emailVerifiedAt) {
+            if (!user || user.isEmailVerified()) {
                 return;
             }
 
-            const reusableToken = this.getReusableEmailVerificationToken(user);
+            const reusableToken = user.getReusableVerificationToken();
             let tokenToSend = reusableToken?.token;
 
             if (!tokenToSend) {
@@ -179,7 +164,7 @@ export default class AuthService implements IAuthService {
             });
         }
 
-        if (user.accountStatus !== ACCOUNT_STATUS.ACTIVE) {
+        if (!user.isActive()) {
             const statusMessages = {
                 [ACCOUNT_STATUS.PENDING_VERIFICATION]: 'Please verify your email before logging in',
                 [ACCOUNT_STATUS.SUSPENDED]: 'User account is suspended',
@@ -187,7 +172,7 @@ export default class AuthService implements IAuthService {
             } as const;
 
             throw new AppError({
-                message: statusMessages[user.accountStatus] ?? 'Access denied',
+                message: statusMessages[user.accountStatus as keyof typeof statusMessages] ?? 'Access denied',
                 statusCode: HTTP_STATUS.FORBIDDEN,
                 errorCode: ERROR_CODE.AUTHORIZATION_ERROR,
             });
@@ -253,7 +238,7 @@ export default class AuthService implements IAuthService {
         // Atomically check AND revoke the session in a single database operation
         const session = await this.authRepository.consumeRefreshSession(payload.jti);
 
-        if (!session || session.expiresAt < new Date()) {
+        if (!session || session.isInvalid()) {
             throw new AppError({
                 message: 'Refresh token is invalid or has been revoked',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -266,7 +251,7 @@ export default class AuthService implements IAuthService {
 
         const user = await this.authRepository.findUserById(session.userId);
 
-        if (user?.accountStatus !== ACCOUNT_STATUS.ACTIVE) {
+        if (!user?.isActive()) {
             throw new AppError({
                 message: 'Refresh token is invalid or has been revoked',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -310,7 +295,7 @@ export default class AuthService implements IAuthService {
         const payload = verifyRefreshToken(refreshToken);
         const session = await this.authRepository.findRefreshSession(payload.jti);
 
-        if (session?.userId !== userId || session.revokedAt) {
+        if (!session || !session.belongsTo(userId) || session.isRevoked()) {
             throw new AppError({
                 message: 'Refresh token is invalid or has already been revoked',
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -332,7 +317,7 @@ export default class AuthService implements IAuthService {
         void userCache.invalidate(userId);
     }
 
-    async getActiveSessions(userId: string): Promise<RefreshToken[]> {
+    async getActiveSessions(userId: string): Promise<RefreshSessionEntity[]> {
         return this.authRepository.findActiveSessionsByUser(userId);
     }
 }

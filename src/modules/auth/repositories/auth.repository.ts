@@ -9,7 +9,9 @@ import { refreshSessions, users } from '@infrastructure/database/schema';
 import { and, eq, isNull, isNotNull, gt } from 'drizzle-orm';
 import { BaseRepository } from '@infrastructure/database/repositories/base.repository';
 import { ACCOUNT_STATUS } from '@constants';
-import type { IAuthRepository, RefreshToken, RefreshTokenInput, RegisterInput, User } from '../types';
+import { UserEntity } from '../../users/entities';
+import { RefreshSessionEntity } from '../entities';
+import type { IAuthRepository, RefreshTokenInput, RegisterInput } from '../types';
 
 export default class AuthRepository extends BaseRepository implements IAuthRepository {
     constructor(db: Database) {
@@ -20,7 +22,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         return new AuthRepository(db) as this;
     }
 
-    async register(data: RegisterInput): Promise<User> {
+    async register(data: RegisterInput): Promise<UserEntity> {
         return this.execute({
             context: 'AuthRepository.register',
             operation: async () => {
@@ -30,7 +32,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     throw new Error('Failed to register user');
                 }
 
-                return newUser[0];
+                return UserEntity.fromPersistence(newUser[0]);
             },
         });
     }
@@ -82,7 +84,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         });
     }
 
-    async findUserByEmail(email: string): Promise<User | null> {
+    async findUserByEmail(email: string): Promise<UserEntity | null> {
         return this.execute({
             context: 'AuthRepository.findUserByEmail',
             operation: async () => {
@@ -90,12 +92,12 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     where: (users, { and, eq, isNull }) => and(eq(users.email, email), isNull(users.deletedAt)),
                 });
 
-                return user ?? null;
+                return user ? UserEntity.fromPersistence(user) : null;
             },
         });
     }
 
-    async findUserById(id: string): Promise<User | null> {
+    async findUserById(id: string): Promise<UserEntity | null> {
         return this.execute({
             context: 'AuthRepository.findUserById',
             operation: async () => {
@@ -103,12 +105,18 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     where: (users, { and, eq, isNull }) => and(eq(users.id, id), isNull(users.deletedAt)),
                 });
 
-                return user ?? null;
+                return user ? UserEntity.fromPersistence(user) : null;
             },
         });
     }
 
-    async createRefreshSession({ userId, device, ip, userAgent, expiresAt }: RefreshTokenInput): Promise<RefreshToken> {
+    async createRefreshSession({
+        userId,
+        device,
+        ip,
+        userAgent,
+        expiresAt,
+    }: RefreshTokenInput): Promise<RefreshSessionEntity> {
         return this.execute({
             context: 'AuthRepository.createRefreshSession',
             operation: async () => {
@@ -127,12 +135,12 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     throw new Error('Failed to create refresh session');
                 }
 
-                return newRefreshToken[0];
+                return RefreshSessionEntity.fromPersistence(newRefreshToken[0]);
             },
         });
     }
 
-    async findRefreshSession(jti: string): Promise<RefreshToken | null> {
+    async findRefreshSession(jti: string): Promise<RefreshSessionEntity | null> {
         return this.execute({
             context: 'AuthRepository.findRefreshSession',
             operation: async () => {
@@ -140,13 +148,13 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     where: (refreshSessions, { eq }) => eq(refreshSessions.id, jti),
                 });
 
-                return session ?? null;
+                return session ? RefreshSessionEntity.fromPersistence(session) : null;
             },
         });
     }
 
     /** Atomically marks session as revoked and returns it if it was active */
-    async consumeRefreshSession(jti: string): Promise<RefreshToken | null> {
+    async consumeRefreshSession(jti: string): Promise<RefreshSessionEntity | null> {
         return this.execute({
             context: 'AuthRepository.consumeRefreshSession',
             operation: async () => {
@@ -156,7 +164,7 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                     .where(and(eq(refreshSessions.id, jti), isNull(refreshSessions.revokedAt)))
                     .returning();
 
-                return result[0] ?? null;
+                return result[0] ? RefreshSessionEntity.fromPersistence(result[0]) : null;
             },
         });
     }
@@ -182,11 +190,11 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         });
     }
 
-    async findActiveSessionsByUser(userId: string): Promise<RefreshToken[]> {
+    async findActiveSessionsByUser(userId: string): Promise<RefreshSessionEntity[]> {
         return this.execute({
             context: 'AuthRepository.findActiveSessionsByUser',
             operation: async () => {
-                return this.db.query.refreshSessions.findMany({
+                const sessions = await this.db.query.refreshSessions.findMany({
                     where: (refreshSessions, { eq, and, isNull, gt }) =>
                         and(
                             eq(refreshSessions.userId, userId),
@@ -194,6 +202,8 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
                             gt(refreshSessions.expiresAt, new Date()),
                         ),
                 });
+
+                return sessions.map((session) => RefreshSessionEntity.fromPersistence(session));
             },
         });
     }

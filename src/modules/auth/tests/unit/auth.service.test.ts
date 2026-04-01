@@ -4,12 +4,14 @@
  */
 
 import AuthService from '../../services/auth.service';
-import type { IAuthRepository, User, RefreshToken } from '../../types';
+import type { IAuthRepository } from '../../types';
 import argon2 from 'argon2';
 import { ACCOUNT_STATUS, HTTP_STATUS, USER_ROLES, ERROR_CODE } from '@constants';
 import * as jwtUtils from '@utils';
 import { DatabaseError } from '@errors';
 import { emailService } from '@infrastructure/email/email.service';
+import { UserEntity, type UserRow } from '../../../users/entities';
+import { RefreshSessionEntity, type RefreshSessionRow } from '../../entities';
 
 // Mock dependencies
 jest.mock('argon2');
@@ -45,7 +47,7 @@ describe('AuthService', () => {
     let authService: AuthService;
     let mockAuthRepository: jest.Mocked<IAuthRepository>;
 
-    const mockUser: User = {
+    const mockUserRow: UserRow = {
         id: 'user-id',
         email: 'test@example.com',
         name: 'Test User',
@@ -64,7 +66,9 @@ describe('AuthService', () => {
         deletedAt: null,
     };
 
-    const mockSession: RefreshToken = {
+    const mockUser = UserEntity.fromPersistence(mockUserRow);
+
+    const mockSessionRow: RefreshSessionRow = {
         id: 'session-id',
         userId: 'user-id',
         expiresAt: new Date(Date.now() + 100_000),
@@ -74,6 +78,8 @@ describe('AuthService', () => {
         userAgent: 'ua',
         createdAt: new Date(),
     };
+
+    const mockSession = RefreshSessionEntity.fromPersistence(mockSessionRow);
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -110,7 +116,8 @@ describe('AuthService', () => {
 
             const result = await authService.registerUser(registerData);
 
-            expect(result).toEqual(mockUser);
+            expect(result).toBeInstanceOf(UserEntity);
+            expect(result.id).toBe(mockUser.id);
             expect(mockAuthRepository.findUserByEmail).toHaveBeenCalledWith(registerData.email);
             expect(argon2.hash).toHaveBeenCalledWith(registerData.password);
             expect(mockAuthRepository.register).toHaveBeenCalledWith(
@@ -146,7 +153,7 @@ describe('AuthService', () => {
             mockAuthRepository.register.mockResolvedValue(mockUser);
             (emailService.enqueueVerificationEmail as jest.Mock).mockRejectedValueOnce(new Error('queue unavailable'));
 
-            await expect(authService.registerUser(registerData)).resolves.toEqual(mockUser);
+            await expect(authService.registerUser(registerData)).resolves.toBe(mockUser);
         });
     });
 
@@ -163,7 +170,8 @@ describe('AuthService', () => {
         });
 
         it('should do nothing when the user is already verified', async () => {
-            mockAuthRepository.findUserByEmail.mockResolvedValue({ ...mockUser, emailVerifiedAt: new Date() });
+            const verifiedUser = UserEntity.fromPersistence({ ...mockUserRow, emailVerifiedAt: new Date() });
+            mockAuthRepository.findUserByEmail.mockResolvedValue(verifiedUser);
 
             await expect(authService.resendVerificationEmail(mockUser.email)).resolves.not.toThrow();
 
@@ -172,11 +180,11 @@ describe('AuthService', () => {
         });
 
         it('should reuse an existing valid verification token and enqueue an email', async () => {
-            const unexpiredTokenUser = {
-                ...mockUser,
+            const unexpiredTokenUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 emailVerificationToken: 'existing-token',
                 emailVerificationTokenExpiresAt: new Date(Date.now() + 60_000),
-            };
+            });
             mockAuthRepository.findUserByEmail.mockResolvedValue(unexpiredTokenUser);
 
             await expect(authService.resendVerificationEmail(mockUser.email)).resolves.not.toThrow();
@@ -218,11 +226,11 @@ describe('AuthService', () => {
         });
 
         it('should create a new verification token and enqueue an email when the current token is expired', async () => {
-            const expiredTokenUser = {
-                ...mockUser,
+            const expiredTokenUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 emailVerificationToken: 'expired-token',
                 emailVerificationTokenExpiresAt: new Date(Date.now() - 60_000),
-            };
+            });
             mockAuthRepository.findUserByEmail.mockResolvedValue(expiredTokenUser);
             mockAuthRepository.setEmailVerificationToken.mockResolvedValue(true);
 
@@ -268,11 +276,11 @@ describe('AuthService', () => {
         const loginData = { email: 'test@example.com', password: 'password123' };
 
         it('should login user and return tokens', async () => {
-            const verifiedUser = {
-                ...mockUser,
+            const verifiedUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.ACTIVE,
                 emailVerifiedAt: new Date(),
-            };
+            });
             mockAuthRepository.findUserByEmail.mockResolvedValue(verifiedUser);
             (argon2.verify as jest.Mock).mockResolvedValue(true);
             mockAuthRepository.createRefreshSession.mockResolvedValue(mockSession);
@@ -284,7 +292,7 @@ describe('AuthService', () => {
 
             expect(result.accessToken).toBe('access-token');
             expect(result.refreshToken).toBe('refresh-token');
-            expect(result.user).toEqual(verifiedUser);
+            expect(result.user.id).toBe(verifiedUser.id);
             expect(mockAuthRepository.createRefreshSession).toHaveBeenCalledWith(
                 expect.objectContaining({ userId: mockUser.id }),
             );
@@ -300,11 +308,12 @@ describe('AuthService', () => {
         });
 
         it('should throw FORBIDDEN when user account is suspended', async () => {
-            mockAuthRepository.findUserByEmail.mockResolvedValue({
-                ...mockUser,
+            const suspendedUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.SUSPENDED,
                 emailVerifiedAt: new Date(),
             });
+            mockAuthRepository.findUserByEmail.mockResolvedValue(suspendedUser);
             (argon2.verify as jest.Mock).mockResolvedValue(true);
 
             await expect(authService.loginUser(loginData)).rejects.toMatchObject({
@@ -315,11 +324,12 @@ describe('AuthService', () => {
         });
 
         it('should throw FORBIDDEN when user account is banned', async () => {
-            mockAuthRepository.findUserByEmail.mockResolvedValue({
-                ...mockUser,
+            const bannedUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.BANNED,
                 emailVerifiedAt: new Date(),
             });
+            mockAuthRepository.findUserByEmail.mockResolvedValue(bannedUser);
             (argon2.verify as jest.Mock).mockResolvedValue(true);
 
             await expect(authService.loginUser(loginData)).rejects.toMatchObject({
@@ -352,19 +362,21 @@ describe('AuthService', () => {
 
         it('should revoke oldest sessions when active session count exceeds limit', async () => {
             const MAX = 5;
-            const makeSession = (i: number): RefreshToken => ({
-                ...mockSession,
-                id: `session-${i}`,
-                expiresAt: new Date(Date.now() + i * 1000),
-            });
+            const makeSession = (i: number): RefreshSessionEntity =>
+                RefreshSessionEntity.fromPersistence({
+                    ...mockSessionRow,
+                    id: `session-${i}`,
+                    expiresAt: new Date(Date.now() + i * 1000),
+                });
             // 6 active sessions — one over the limit
             const activeSessions = Array.from({ length: MAX + 1 }, (_, i) => makeSession(i));
 
-            mockAuthRepository.findUserByEmail.mockResolvedValue({
-                ...mockUser,
+            const activeUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.ACTIVE,
                 emailVerifiedAt: new Date(),
             });
+            mockAuthRepository.findUserByEmail.mockResolvedValue(activeUser);
             (argon2.verify as jest.Mock).mockResolvedValue(true);
             mockAuthRepository.createRefreshSession.mockResolvedValue(mockSession);
             mockAuthRepository.findActiveSessionsByUser.mockResolvedValue(activeSessions);
@@ -379,11 +391,12 @@ describe('AuthService', () => {
         });
 
         it('should not revoke sessions when active session count is within limit', async () => {
-            mockAuthRepository.findUserByEmail.mockResolvedValue({
-                ...mockUser,
+            const activeUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.ACTIVE,
                 emailVerifiedAt: new Date(),
             });
+            mockAuthRepository.findUserByEmail.mockResolvedValue(activeUser);
             (argon2.verify as jest.Mock).mockResolvedValue(true);
             mockAuthRepository.createRefreshSession.mockResolvedValue(mockSession);
             mockAuthRepository.findActiveSessionsByUser.mockResolvedValue([mockSession]);
@@ -402,12 +415,15 @@ describe('AuthService', () => {
         it('should rotate tokens successfully', async () => {
             (jwtUtils.verifyRefreshToken as jest.Mock).mockReturnValue({ sub: 'user-id', jti: 'session-id' });
             mockAuthRepository.consumeRefreshSession.mockResolvedValue(mockSession);
-            mockAuthRepository.findUserById.mockResolvedValue({
-                ...mockUser,
+            const activeUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.ACTIVE,
                 emailVerifiedAt: new Date(),
             });
-            mockAuthRepository.createRefreshSession.mockResolvedValue({ ...mockSession, id: 'new-session-id' });
+            mockAuthRepository.findUserById.mockResolvedValue(activeUser);
+            mockAuthRepository.createRefreshSession.mockResolvedValue(
+                RefreshSessionEntity.fromPersistence({ ...mockSessionRow, id: 'new-session-id' }),
+            );
             (jwtUtils.generateAccessToken as jest.Mock).mockReturnValue('new-access-token');
             (jwtUtils.generateRefreshToken as jest.Mock).mockReturnValue('new-refresh-token');
 
@@ -430,10 +446,11 @@ describe('AuthService', () => {
 
         it('should throw UNAUTHORIZED when session is expired', async () => {
             (jwtUtils.verifyRefreshToken as jest.Mock).mockReturnValue({ sub: 'user-id', jti: 'session-id' });
-            mockAuthRepository.consumeRefreshSession.mockResolvedValue({
-                ...mockSession,
+            const expiredSession = RefreshSessionEntity.fromPersistence({
+                ...mockSessionRow,
                 expiresAt: new Date(Date.now() - 1000),
             });
+            mockAuthRepository.consumeRefreshSession.mockResolvedValue(expiredSession);
 
             await expect(authService.refreshTokens('old-token')).rejects.toMatchObject({
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -455,11 +472,12 @@ describe('AuthService', () => {
         it('should throw UNAUTHORIZED when user is suspended', async () => {
             (jwtUtils.verifyRefreshToken as jest.Mock).mockReturnValue({ sub: 'user-id', jti: 'session-id' });
             mockAuthRepository.consumeRefreshSession.mockResolvedValue(mockSession);
-            mockAuthRepository.findUserById.mockResolvedValue({
-                ...mockUser,
+            const suspendedUser = UserEntity.fromPersistence({
+                ...mockUserRow,
                 accountStatus: ACCOUNT_STATUS.SUSPENDED,
                 emailVerifiedAt: new Date(),
             });
+            mockAuthRepository.findUserById.mockResolvedValue(suspendedUser);
 
             await expect(authService.refreshTokens('old-token')).rejects.toMatchObject({
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -481,8 +499,12 @@ describe('AuthService', () => {
         });
 
         it('should throw UNAUTHORIZED when session belongs to a different user', async () => {
-            (jwtUtils.verifyRefreshToken as jest.Mock).mockReturnValue({ sub: 'other-user-id', jti: 'session-id' });
-            mockAuthRepository.findRefreshSession.mockResolvedValue({ ...mockSession, userId: 'other-user-id' });
+            (jwtUtils.verifyRefreshToken as jest.Mock).mockReturnValue({ sub: 'user-id', jti: 'session-id' });
+            const otherUserSession = RefreshSessionEntity.fromPersistence({
+                ...mockSessionRow,
+                userId: 'other-user-id',
+            });
+            mockAuthRepository.findRefreshSession.mockResolvedValue(otherUserSession);
 
             await expect(authService.logout('user-id', 'refresh-token')).rejects.toMatchObject({
                 statusCode: HTTP_STATUS.UNAUTHORIZED,
@@ -517,7 +539,10 @@ describe('AuthService', () => {
 
     describe('getActiveSessions', () => {
         it('should return active sessions for the user', async () => {
-            const sessions = [mockSession, { ...mockSession, id: 'session-2' }];
+            const sessions = [
+                mockSession,
+                RefreshSessionEntity.fromPersistence({ ...mockSessionRow, id: 'session-2' }),
+            ];
             mockAuthRepository.findActiveSessionsByUser.mockResolvedValue(sessions);
 
             const result = await authService.getActiveSessions('user-id');

@@ -5,4 +5,5 @@
  */
 
 import './auth.swagger';
+
 export { default as authRoutes } from './routes/auth.route';

@@ -8,6 +8,8 @@
 import type { InferSelectModel } from 'drizzle-orm';
 import type { refreshSessions, users } from '@infrastructure/database/schema';
 import type { ITransactionalRepository } from '@infrastructure/database/repositories/repository.types';
+import type { UserEntity } from '../../users/entities';
+import type { RefreshSessionEntity } from '../entities';
 
 export type User = InferSelectModel<typeof users>;
 export type RefreshToken = InferSelectModel<typeof refreshSessions>;
@@ -30,15 +32,15 @@ export type RegisterInput = {
 
 /** Contract that the AuthRepository must satisfy */
 export interface IAuthRepository extends ITransactionalRepository<IAuthRepository> {
-    register(data: RegisterInput): Promise<User>;
-    findUserByEmail(email: string): Promise<User | null>;
-    findUserById(id: string): Promise<User | null>;
+    register(data: RegisterInput): Promise<UserEntity>;
+    findUserByEmail(email: string): Promise<UserEntity | null>;
+    findUserById(id: string): Promise<UserEntity | null>;
     setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<boolean>;
-    createRefreshSession(data: RefreshTokenInput): Promise<RefreshToken>;
-    findRefreshSession(jti: string): Promise<RefreshToken | null>;
-    consumeRefreshSession(jti: string): Promise<RefreshToken | null>;
+    createRefreshSession(data: RefreshTokenInput): Promise<RefreshSessionEntity>;
+    findRefreshSession(jti: string): Promise<RefreshSessionEntity | null>;
+    consumeRefreshSession(jti: string): Promise<RefreshSessionEntity | null>;
     revokeRefreshSession(jti: string): Promise<void>;
     revokeAllUserSessions(userId: string): Promise<void>;
-    findActiveSessionsByUser(userId: string): Promise<RefreshToken[]>;
+    findActiveSessionsByUser(userId: string): Promise<RefreshSessionEntity[]>;
     verifyEmail(token: string): Promise<boolean>;
 }
