@@ -5,11 +5,19 @@
  */
 
 import type { User, RefreshToken } from '../types';
-import type { LoginBodyInput, RegisterBodyInput, ResendVerificationEmailBodyInput } from '../validations';
+import type {
+    ForgotPasswordBodyInput,
+    LoginBodyInput,
+    RegisterBodyInput,
+    ResendVerificationEmailBodyInput,
+    ResetPasswordBodyInput,
+} from '../validations';
 
 export type RegisterDto = RegisterBodyInput;
 export type LoginDto = LoginBodyInput;
 export type ResendVerificationEmailDto = ResendVerificationEmailBodyInput;
+export type ForgotPasswordDto = ForgotPasswordBodyInput;
+export type ResetPasswordDto = ResetPasswordBodyInput;
 
 export interface AuthUserDto {
     id: string;

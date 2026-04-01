@@ -8,7 +8,13 @@ import type { Request, Response } from 'express';
 import { AUTH_COOKIE_PATH, ERROR_CODE, HTTP_STATUS } from '@constants';
 import { successResponse } from '@utils';
 import { toAuthUserDto, toSessionDto } from '../dto';
-import type { registerRequestSchema, loginRequestSchema, resendVerificationEmailRequestSchema } from '../validations';
+import type {
+    registerRequestSchema,
+    loginRequestSchema,
+    resendVerificationEmailRequestSchema,
+    forgotPasswordRequestSchema,
+    resetPasswordRequestSchema,
+} from '../validations';
 import type { IAuthService } from '../types';
 import type { TypedRequest } from '@types';
 import { AppError } from '@errors';
@@ -33,6 +39,37 @@ export default class AuthController {
         return res
             .status(HTTP_STATUS.OK)
             .json(successResponse(null, 'If an account exists, a verification email will be sent'));
+    };
+
+    /** Request a password reset link */
+    forgotPassword = async (req: TypedRequest<typeof forgotPasswordRequestSchema>, res: Response) => {
+        await this.authService.forgotPassword(req.body);
+        return res
+            .status(HTTP_STATUS.OK)
+            .json(successResponse(null, 'If an account exists, a password reset email will be sent'));
+    };
+
+    /** Reset password using a valid token */
+    resetPassword = async (req: TypedRequest<typeof resetPasswordRequestSchema>, res: Response) => {
+        await this.authService.resetPassword(req.body);
+        return res.status(HTTP_STATUS.OK).json(successResponse(null, 'Password has been reset successfully'));
+    };
+
+    /** Verify if a password reset token is still valid */
+    verifyResetToken = async (req: Request, res: Response) => {
+        const { token } = req.query;
+
+        if (typeof token !== 'string') {
+            throw new AppError({
+                message: 'Invalid reset token',
+                statusCode: HTTP_STATUS.BAD_REQUEST,
+                errorCode: ERROR_CODE.VALIDATION_ERROR,
+            });
+        }
+
+        await this.authService.verifyResetToken(token);
+
+        return res.status(HTTP_STATUS.OK).json(successResponse(null, 'Token is valid'));
     };
 
     /** Authenticate user and issue tokens */
