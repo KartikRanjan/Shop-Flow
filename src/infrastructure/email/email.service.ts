@@ -13,6 +13,7 @@ import type {
     DeadLetterEmailJobResponse,
     EmailJobData,
     EnqueueEmailOptions,
+    ResetPasswordPayload,
     VerifyEmailPayload,
 } from './email.types';
 import { parseEmailJobData } from './email.types';
@@ -38,6 +39,17 @@ export class EmailService {
             payload: {
                 name: params.name,
                 verificationUrl: params.verificationUrl,
+            },
+        });
+    }
+
+    async enqueueResetPasswordEmail(params: { to: string } & ResetPasswordPayload): Promise<string> {
+        return this.enqueue({
+            to: params.to,
+            template: EMAIL_TEMPLATE.RESET_PASSWORD,
+            payload: {
+                name: params.name,
+                resetUrl: params.resetUrl,
             },
         });
     }
