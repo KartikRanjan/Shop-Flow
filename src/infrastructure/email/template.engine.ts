@@ -4,10 +4,8 @@ import Handlebars from 'handlebars';
 import type { TemplateDelegate } from 'handlebars';
 import { logger } from '@infrastructure/logger';
 import { EMAIL_TEMPLATE_FILE_NAMES, EMAIL_TEMPLATE_SUBJECTS } from './email.constants';
-import type { EmailJobData } from './email.types';
 import { parseEmailJobData } from './email.types';
 
-type TemplateName = (typeof EMAIL_TEMPLATE_FILE_NAMES)[keyof typeof EMAIL_TEMPLATE_FILE_NAMES];
 type TemplateKey = keyof typeof EMAIL_TEMPLATE_FILE_NAMES;
 
 const compiledTemplates = new Map<TemplateKey, TemplateDelegate>();
@@ -48,7 +46,7 @@ export const renderTemplate = (template: TemplateKey, payload: unknown): { subje
     const compiled = compileTemplate(template);
 
     return {
-        subject: EMAIL_TEMPLATE_SUBJECTS[template],
+        subject: EMAIL_TEMPLATE_SUBJECTS[template] ?? null,
         html: compiled(payload),
     };
 };
