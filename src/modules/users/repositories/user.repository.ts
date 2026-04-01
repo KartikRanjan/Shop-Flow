@@ -1,6 +1,7 @@
 import type { Database } from '@infrastructure/database';
 import { BaseRepository } from '@infrastructure/database/repositories/base.repository';
-import type { IUserRepository, User } from '../types';
+import type { IUserRepository, UserRow } from '../types';
+import { UserEntity } from '../entities';
 import { users } from '@infrastructure/database/schema';
 import { count } from 'drizzle-orm';
 import type { PaginatedResult, PaginationOptions } from '@types';
@@ -15,71 +16,73 @@ export default class UserRepository extends BaseRepository implements IUserRepos
         return new UserRepository(db) as this;
     }
 
-    async findById(id: string): Promise<User | null> {
+    async findById(id: string): Promise<UserEntity | null> {
         return this.execute({
             context: 'UserRepository.findById',
             operation: async () => {
-                const user = await this.db.query.users.findFirst({
+                const row = await this.db.query.users.findFirst({
                     where: (t) => findUniqueNotDeleted(t, t.id, id),
                 });
-                return user ?? null;
+                return row ? UserEntity.fromPersistence(row) : null;
             },
         });
     }
 
-    async findByEmail(email: string): Promise<User | null> {
+    async findByEmail(email: string): Promise<UserEntity | null> {
         return this.execute({
             context: 'UserRepository.findByEmail',
             operation: async () => {
-                const user = await this.db.query.users.findFirst({
+                const row = await this.db.query.users.findFirst({
                     where: (t) => findUniqueNotDeleted(t, t.email, email),
                 });
-                return user ?? null;
+                return row ? UserEntity.fromPersistence(row) : null;
             },
         });
     }
 
-    async updateById(id: string, data: Partial<User>): Promise<User | null> {
+    async updateById(id: string, data: Partial<UserRow>): Promise<UserEntity | null> {
         return this.execute({
             context: 'UserRepository.updateById',
             operation: async () => {
-                const [updatedUser] = await this.db
+                const [row] = await this.db
                     .update(users)
                     .set(data)
                     .where(findUniqueNotDeleted(users, users.id, id))
                     .returning();
 
-                return updatedUser ?? null;
+                return row ? UserEntity.fromPersistence(row) : null;
             },
         });
     }
 
     /** Performs a soft delete by setting deletedAt timestamp */
-    async deleteById(id: string): Promise<User | null> {
+    async deleteById(id: string): Promise<UserEntity | null> {
         return this.execute({
             context: 'UserRepository.deleteById',
             operation: async () => {
-                const [deletedUser] = await this.db
+                const [row] = await this.db
                     .update(users)
                     .set(this.softDeletePayload())
                     .where(findUniqueNotDeleted(users, users.id, id))
                     .returning();
 
-                return deletedUser ?? null;
+                return row ? UserEntity.fromPersistence(row) : null;
             },
         });
     }
 
-    async findMany({ page, limit }: PaginationOptions): Promise<PaginatedResult<User>> {
+    async findMany({ page, limit }: PaginationOptions): Promise<PaginatedResult<UserEntity>> {
         return this.paginatedQuery({
             context: 'UserRepository.findMany',
             page,
             limit,
-            queryFn: async (options) =>
-                this.db.query.users.findMany({
+            queryFn: async (options) => {
+                const rows = await this.db.query.users.findMany({
                     where: (t) => notDeleted(t),
                     ...options,
-                }),
+                });
+                return rows.map((row) => UserEntity.fromPersistence(row));
+            },
             countFn: async () => {
                 const [result] = await this.db.select({ total: count() }).from(users).where(notDeleted(users));
                 return result?.total ?? 0;

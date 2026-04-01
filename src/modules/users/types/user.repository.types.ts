@@ -5,17 +5,17 @@
  * Kept inside the users module — these types are not shared with other modules.
  */
 
-import type { InferSelectModel } from 'drizzle-orm';
-import type { users } from '@infrastructure/database/schema';
 import type { PaginatedResult, PaginationOptions } from '@types';
 import type { ITransactionalRepository } from '@infrastructure/database/repositories/repository.types';
+import type { UserEntity, UserRow } from '../entities';
 
-export type User = InferSelectModel<typeof users>;
+/** Re-export for convenience within the users module. */
+export type { UserRow };
 
 export interface IUserRepository extends ITransactionalRepository<IUserRepository> {
-    findById(id: string): Promise<User | null>;
-    findByEmail(email: string): Promise<User | null>;
-    updateById(id: string, data: Partial<User>): Promise<User | null>;
-    deleteById(id: string): Promise<User | null>;
-    findMany(options: PaginationOptions): Promise<PaginatedResult<User>>;
+    findById(id: string): Promise<UserEntity | null>;
+    findByEmail(email: string): Promise<UserEntity | null>;
+    updateById(id: string, data: Partial<UserRow>): Promise<UserEntity | null>;
+    deleteById(id: string): Promise<UserEntity | null>;
+    findMany(options: PaginationOptions): Promise<PaginatedResult<UserEntity>>;
 }

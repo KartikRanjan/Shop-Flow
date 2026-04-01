@@ -4,16 +4,16 @@
  * @description
  */
 
-import type { User } from './user.repository.types';
 import type { PaginatedResult, PaginationOptions } from '@types';
+import type { UserEntity } from '../entities';
 
 /** Fields a user is allowed to update on their own profile. */
-export type UpdateProfileInput = Partial<Pick<User, 'name' | 'phoneNumber'>>;
+export type UpdateProfileInput = Partial<Pick<UserEntity, 'name' | 'phoneNumber'>>;
 
 export interface IUserService {
-    getById(id: string): Promise<User>;
-    getByEmail(email: string): Promise<User>;
-    updateById(id: string, data: UpdateProfileInput): Promise<User>;
+    getById(id: string): Promise<UserEntity>;
+    getByEmail(email: string): Promise<UserEntity>;
+    updateById(id: string, data: UpdateProfileInput): Promise<UserEntity>;
     deleteById(id: string): Promise<void>;
-    findAllUsers(options: PaginationOptions): Promise<PaginatedResult<User>>;
+    findAllUsers(options: PaginationOptions): Promise<PaginatedResult<UserEntity>>;
 }

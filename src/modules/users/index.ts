@@ -5,3 +5,4 @@
  */
 
 export { default as userRoutes } from './routes/user.route';
+export { UserEntity } from '@modules/users/entities';

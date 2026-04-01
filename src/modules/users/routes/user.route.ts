@@ -16,12 +16,12 @@ import {
 
 const router = Router();
 
-// "Me" routes (Authenticated user's own profile)
-router.get('/me', authenticate.all, userController.getUserById);
-router.put('/me', authenticate.all, validateRequest(updateMeRequestSchema), userController.updateUser);
+// "Me" routes (Authenticated user's own profile — returns UserProfileDto)
+router.get('/me', authenticate.all, userController.getMe);
+router.put('/me', authenticate.all, validateRequest(updateMeRequestSchema), userController.updateMe);
 router.delete('/me', authenticate.all, userController.deleteUser);
 
-// Admin/Seller routes (Operations by ID)
+// Admin/Seller routes (Operations by ID — returns UserDetailsDto)
 router.get('/', authenticate.admin, validateRequest(getUsersRequestSchema), userController.getUsers);
 router.get('/:id', authenticate.adminAndSeller, validateRequest(userIdParamsSchema), userController.getUserById);
 router.put('/:id', authenticate.admin, validateRequest(updateUserRequestSchema), userController.updateUser);

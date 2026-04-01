@@ -10,12 +10,13 @@ import type { UpdateProfileInput } from '../types';
 import type { PaginationOptions } from '@types';
 import { toUserDetailsDto } from '../dto';
 import { userCache } from '@modules/auth/cache/user.cache';
+import type { UserEntity } from '../entities';
 
 export default class UserService {
     constructor(private readonly userRepository: UserRepository) {}
 
     /** Retrieves user by ID and throws NotFoundError if not found */
-    async getUserById(id: string) {
+    async getUserById(id: string): Promise<UserEntity> {
         const user = await this.userRepository.findById(id);
         if (!user) {
             throw new NotFoundError('User not found');
@@ -23,11 +24,11 @@ export default class UserService {
         return user;
     }
 
-    async getUserByEmail(email: string) {
-        return await this.userRepository.findByEmail(email);
+    async getUserByEmail(email: string): Promise<UserEntity | null> {
+        return this.userRepository.findByEmail(email);
     }
 
-    async updateProfileById(id: string, data: UpdateProfileInput) {
+    async updateProfileById(id: string, data: UpdateProfileInput): Promise<UserEntity> {
         if (!data || Object.keys(data).length === 0) {
             throw new ValidationError('No fields provided to update');
         }
