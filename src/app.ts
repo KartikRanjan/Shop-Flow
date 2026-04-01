@@ -44,6 +44,9 @@ const createApp = () => {
     app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
 
+    // Serve static files from the 'public' directory
+    app.use(express.static('public'));
+
     app.get('/health', (req, res) => {
         res.status(HTTP_STATUS.OK).json(successResponse(null, 'Server is healthy'));
     });

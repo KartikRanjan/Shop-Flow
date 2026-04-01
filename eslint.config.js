@@ -24,6 +24,15 @@ export default [
         },
     },
 
+    {
+        files: ['public/**/*.js'],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+            },
+        },
+    },
+
     prettier,
 
     {
