@@ -1,5 +1,6 @@
 export const EMAIL_TEMPLATE = {
     VERIFY_EMAIL: 'verify-email',
+    VERIFICATION_RESULT: 'verification-result',
 } as const;
 
 export const EMAIL_QUEUE_NAME = 'email-queue';
@@ -20,8 +21,10 @@ export const EMAIL_FAILED_JOB_RETENTION = {
 
 export const EMAIL_TEMPLATE_FILE_NAMES = {
     [EMAIL_TEMPLATE.VERIFY_EMAIL]: 'verify-email.hbs',
+    [EMAIL_TEMPLATE.VERIFICATION_RESULT]: 'verification-result.hbs',
 } as const;
 
-export const EMAIL_TEMPLATE_SUBJECTS = {
+export const EMAIL_TEMPLATE_SUBJECTS: Record<string, string | null> = {
     [EMAIL_TEMPLATE.VERIFY_EMAIL]: 'Verify your email - ShopFlow',
+    [EMAIL_TEMPLATE.VERIFICATION_RESULT]: null,
 } as const;

@@ -10,7 +10,7 @@ import {
     EMAIL_WORKER_CONCURRENCY,
 } from './email.constants';
 import { addDeadLetterEmailJob } from './email.queue';
-import { renderTemplate, preloadEmailTemplates } from './template.engine';
+import { renderEmailFromJob, preloadEmailTemplates } from './template.engine';
 import { sendEmail } from './transporter';
 import type { EmailJobData } from './email.types';
 
@@ -21,7 +21,7 @@ export const initEmailProcessor = () => {
         EMAIL_QUEUE_NAME,
         async (job: Job<EmailJobData>) => {
             const { to } = job.data;
-            const email = renderTemplate(job.data);
+            const email = renderEmailFromJob(job.data);
 
             logger.debug({ jobId: job.id, to, template: job.data.template }, 'Processing email job');
 

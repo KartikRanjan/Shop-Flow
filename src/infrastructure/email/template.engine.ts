@@ -7,14 +7,15 @@ import { EMAIL_TEMPLATE_FILE_NAMES, EMAIL_TEMPLATE_SUBJECTS } from './email.cons
 import type { EmailJobData } from './email.types';
 import { parseEmailJobData } from './email.types';
 
-type EmailTemplate = EmailJobData['template'];
+type TemplateName = (typeof EMAIL_TEMPLATE_FILE_NAMES)[keyof typeof EMAIL_TEMPLATE_FILE_NAMES];
+type TemplateKey = keyof typeof EMAIL_TEMPLATE_FILE_NAMES;
 
-const compiledTemplates = new Map<EmailTemplate, TemplateDelegate>();
+const compiledTemplates = new Map<TemplateKey, TemplateDelegate>();
 
-const getTemplatePath = (template: EmailTemplate): string =>
+const getTemplatePath = (template: TemplateKey): string =>
     path.join(__dirname, 'templates', EMAIL_TEMPLATE_FILE_NAMES[template]);
 
-const compileTemplate = (template: EmailTemplate): TemplateDelegate => {
+const compileTemplate = (template: TemplateKey): TemplateDelegate => {
     const cached = compiledTemplates.get(template);
 
     if (cached) {
@@ -29,7 +30,7 @@ const compileTemplate = (template: EmailTemplate): TemplateDelegate => {
 };
 
 export const preloadEmailTemplates = (): void => {
-    const templates = Object.keys(EMAIL_TEMPLATE_FILE_NAMES) as EmailTemplate[];
+    const templates = Object.keys(EMAIL_TEMPLATE_FILE_NAMES) as TemplateKey[];
 
     templates.forEach((template) => {
         compileTemplate(template);
@@ -38,12 +39,29 @@ export const preloadEmailTemplates = (): void => {
     logger.info({ count: templates.length }, 'Email templates precompiled');
 };
 
-export const renderTemplate = (data: unknown): { subject: string; html: string } => {
-    const payload = parseEmailJobData(data);
-    const compiled = compileTemplate(payload.template);
+/**
+ * Renders a template with the given data.
+ * @param template The template key from EMAIL_TEMPLATE
+ * @param payload The data to inject into the template
+ */
+export const renderTemplate = (template: TemplateKey, payload: unknown): { subject: string | null; html: string } => {
+    const compiled = compileTemplate(template);
 
     return {
-        subject: EMAIL_TEMPLATE_SUBJECTS[payload.template],
-        html: compiled(payload.payload),
+        subject: EMAIL_TEMPLATE_SUBJECTS[template],
+        html: compiled(payload),
+    };
+};
+
+/**
+ * Renders an email template from job data (used by the processor).
+ */
+export const renderEmailFromJob = (data: unknown): { subject: string; html: string } => {
+    const payload = parseEmailJobData(data);
+    const result = renderTemplate(payload.template, payload.payload);
+
+    return {
+        subject: result.subject ?? '',
+        html: result.html,
     };
 };
