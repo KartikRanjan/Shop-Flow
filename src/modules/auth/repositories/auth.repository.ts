@@ -55,6 +55,62 @@ export default class AuthRepository extends BaseRepository implements IAuthRepos
         });
     }
 
+    async setPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<boolean> {
+        return this.execute({
+            context: 'AuthRepository.setPasswordResetToken',
+            operation: async () => {
+                const result = await this.db
+                    .update(users)
+                    .set({
+                        passwordResetToken: token,
+                        passwordResetTokenExpiresAt: expiresAt,
+                    })
+                    .where(and(eq(users.id, userId), isNull(users.deletedAt)))
+                    .returning();
+
+                return result.length > 0;
+            },
+        });
+    }
+
+    async findUserByResetToken(token: string): Promise<UserEntity | null> {
+        return this.execute({
+            context: 'AuthRepository.findUserByResetToken',
+            operation: async () => {
+                const user = await this.db.query.users.findFirst({
+                    where: (users, { and, eq, isNull, gt }) =>
+                        and(
+                            eq(users.passwordResetToken, token),
+                            isNull(users.deletedAt),
+                            gt(users.passwordResetTokenExpiresAt, new Date()),
+                        ),
+                });
+
+                return user ? UserEntity.fromPersistence(user) : null;
+            },
+        });
+    }
+
+    async resetPassword(userId: string, passwordHash: string): Promise<boolean> {
+        return this.execute({
+            context: 'AuthRepository.resetPassword',
+            operation: async () => {
+                const result = await this.db
+                    .update(users)
+                    .set({
+                        passwordHash,
+                        passwordResetToken: null,
+                        passwordResetTokenExpiresAt: null,
+                        updatedAt: new Date(),
+                    })
+                    .where(and(eq(users.id, userId), isNull(users.deletedAt)))
+                    .returning();
+
+                return result.length > 0;
+            },
+        });
+    }
+
     async verifyEmail(token: string): Promise<boolean> {
         return this.execute({
             context: 'AuthRepository.verifyEmail',

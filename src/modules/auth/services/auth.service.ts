@@ -1,19 +1,15 @@
-/**
- * AuthService
- * @module auth/services
- * @description Service layer for authentication-related operations. Handles the business logic for user registration and login.
- */
-
 import argon2 from 'argon2';
 import { AppError, ValidationError } from '@errors';
 import { ACCOUNT_STATUS, DAY_MS, ERROR_CODE, HTTP_STATUS } from '@constants';
 import type {
+    ForgotPasswordInput,
     IAuthRepository,
     IAuthService,
     LoginResult,
     LoginUserInput,
     RefreshResult,
     RegisterUserInput,
+    ResetPasswordInput,
 } from '../types';
 import { env } from '@config/env';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '@utils';
@@ -36,6 +32,13 @@ export default class AuthService implements IAuthService {
         };
     }
 
+    private createPasswordResetToken(): { token: string; expiresAt: Date } {
+        return {
+            token: crypto.randomBytes(32).toString('hex'),
+            expiresAt: new Date(Date.now() + DAY_MS),
+        };
+    }
+
     private async sendVerificationEmail(params: { email: string; name: string; token: string }): Promise<void> {
         const { email, name, token } = params;
 
@@ -43,6 +46,16 @@ export default class AuthService implements IAuthService {
             to: email,
             name,
             verificationUrl: `${env.APP_URL}/api/v1/auth/verify-email?token=${token}`,
+        });
+    }
+
+    private async sendResetPasswordEmail(params: { email: string; name: string; token: string }): Promise<void> {
+        const { email, name, token } = params;
+
+        await emailService.enqueueResetPasswordEmail({
+            to: email,
+            name,
+            resetUrl: `${env.APP_URL}/reset-password.html?token=${token}`,
         });
     }
 
@@ -140,6 +153,82 @@ export default class AuthService implements IAuthService {
         if (!isVerified) {
             throw new ValidationError('Invalid or expired verification token');
         }
+    }
+
+    async verifyResetToken(token: string): Promise<void> {
+        const user = await this.authRepository.findUserByResetToken(token);
+
+        if (!user) {
+            throw new ValidationError('Invalid or expired password reset token');
+        }
+    }
+
+    async forgotPassword(data: ForgotPasswordInput): Promise<void> {
+        try {
+            const user = await this.authRepository.findUserByEmail(data.email);
+
+            // Silent return for non-existent users to prevent enumeration
+            if (!user) {
+                return;
+            }
+
+            const reusableToken = user.getReusableResetToken();
+            let tokenToSend = reusableToken?.token;
+
+            if (!tokenToSend) {
+                const { token, expiresAt } = this.createPasswordResetToken();
+
+                const tokenUpdated = await this.authRepository.setPasswordResetToken(user.id, token, expiresAt);
+
+                if (!tokenUpdated) {
+                    logger.warn(
+                        { userId: user.id, email: user.email },
+                        'Password reset token update failed (user may have been deleted)',
+                    );
+                    return;
+                }
+
+                tokenToSend = token;
+            }
+
+            await this.sendResetPasswordEmail({
+                email: user.email,
+                name: user.name,
+                token: tokenToSend,
+            });
+        } catch (error: unknown) {
+            logger.error(
+                {
+                    error,
+                    email: data.email,
+                },
+                'Failed to handle forgot password request',
+            );
+            // Always return normally to preserve anti-enumeration behavior.
+            return;
+        }
+    }
+
+    async resetPassword(data: ResetPasswordInput): Promise<void> {
+        const user = await this.authRepository.findUserByResetToken(data.token);
+
+        if (!user) {
+            throw new ValidationError('Invalid or expired password reset token');
+        }
+
+        const passwordHash = await argon2.hash(data.password);
+        const updated = await this.authRepository.resetPassword(user.id, passwordHash);
+
+        if (!updated) {
+            throw new AppError({
+                message: 'Failed to reset password',
+                statusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+                errorCode: ERROR_CODE.DATABASE_ERROR,
+            });
+        }
+
+        // Security best practice: Revoke all active sessions when password is reset
+        await this.logoutAll(user.id);
     }
 
     /** Validates credentials/status and enforces a 5-session limit per user */

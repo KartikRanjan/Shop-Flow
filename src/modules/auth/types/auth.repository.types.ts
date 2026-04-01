@@ -28,6 +28,8 @@ export type RegisterInput = {
     phoneNumber?: string | null;
     emailVerificationToken?: string | null;
     emailVerificationTokenExpiresAt?: Date | null;
+    passwordResetToken?: string | null;
+    passwordResetTokenExpiresAt?: Date | null;
 };
 
 /** Contract that the AuthRepository must satisfy */
@@ -36,6 +38,9 @@ export interface IAuthRepository extends ITransactionalRepository<IAuthRepositor
     findUserByEmail(email: string): Promise<UserEntity | null>;
     findUserById(id: string): Promise<UserEntity | null>;
     setEmailVerificationToken(userId: string, token: string, expiresAt: Date): Promise<boolean>;
+    setPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<boolean>;
+    findUserByResetToken(token: string): Promise<UserEntity | null>;
+    resetPassword(userId: string, passwordHash: string): Promise<boolean>;
     createRefreshSession(data: RefreshTokenInput): Promise<RefreshSessionEntity>;
     findRefreshSession(jti: string): Promise<RefreshSessionEntity | null>;
     consumeRefreshSession(jti: string): Promise<RefreshSessionEntity | null>;
