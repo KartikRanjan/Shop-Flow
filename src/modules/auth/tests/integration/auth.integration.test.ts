@@ -392,25 +392,25 @@ describe('Auth Integration Tests', () => {
     // ── GET /api/v1/auth/verify-email ──────────────────────────────────────
 
     describe('GET /api/v1/auth/verify-email', () => {
-        it('should return 200 and success message when token is valid', async () => {
+        it('should return 200 and HTML success page when token is valid', async () => {
             mockAuthService.verifyEmail.mockResolvedValue(undefined);
 
             const res = await request(app).get('/api/v1/auth/verify-email').query({ token: 'valid-token' });
 
             expect(res.status).toBe(HTTP_STATUS.OK);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            expect(res.body.success).toBe(true);
+            expect(res.text).toContain('Email Verified!');
             expect(mockAuthService.verifyEmail).toHaveBeenCalledWith('valid-token');
         });
 
-        it('should return 400 when token is missing', async () => {
+        it('should return 400 and HTML error page when token is missing', async () => {
             const res = await request(app).get('/api/v1/auth/verify-email');
 
             expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
+            expect(res.text).toContain('Verification Failed');
             expect(mockAuthService.verifyEmail).not.toHaveBeenCalled();
         });
 
-        it('should return 400 when token is invalid or expired', async () => {
+        it('should return 400 and HTML error page when token is invalid or expired', async () => {
             mockAuthService.verifyEmail.mockRejectedValue(
                 new AppError({
                     message: 'Invalid or expired verification token',
@@ -421,6 +421,8 @@ describe('Auth Integration Tests', () => {
             const res = await request(app).get('/api/v1/auth/verify-email').query({ token: 'invalid-token' });
 
             expect(res.status).toBe(HTTP_STATUS.BAD_REQUEST);
+            expect(res.text).toContain('Verification Failed');
+            expect(res.text).toContain('Invalid or expired verification token');
         });
     });
 });

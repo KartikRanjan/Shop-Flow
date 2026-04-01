@@ -13,6 +13,8 @@ import type { IAuthService } from '../types';
 import type { TypedRequest } from '@types';
 import { AppError } from '@errors';
 import { env } from '@config/env';
+import { EMAIL_TEMPLATE } from '@infrastructure/email/email.constants';
+import { renderTemplate } from '@infrastructure/email/template.engine';
 
 export default class AuthController {
     constructor(private readonly authService: IAuthService) {}
@@ -131,15 +133,31 @@ export default class AuthController {
     verifyEmail = async (req: Request, res: Response) => {
         const { token } = req.query;
 
-        if (typeof token !== 'string') {
-            throw new AppError({
-                message: 'Invalid verification token',
-                statusCode: HTTP_STATUS.BAD_REQUEST,
-                errorCode: ERROR_CODE.VALIDATION_ERROR,
-            });
-        }
+        try {
+            if (typeof token !== 'string') {
+                const { html } = renderTemplate(EMAIL_TEMPLATE.VERIFICATION_RESULT, {
+                    clientUrl: env.CLIENT_URL,
+                    success: false,
+                    message: 'Invalid verification token',
+                });
+                return res.status(HTTP_STATUS.BAD_REQUEST).send(html);
+            }
 
-        await this.authService.verifyEmail(token);
-        return res.status(HTTP_STATUS.OK).json(successResponse(null, 'Email verified successfully'));
+            await this.authService.verifyEmail(token);
+            const { html } = renderTemplate(EMAIL_TEMPLATE.VERIFICATION_RESULT, {
+                clientUrl: env.CLIENT_URL,
+                success: true,
+            });
+            return res.status(HTTP_STATUS.OK).send(html);
+        } catch (error) {
+            const message =
+                error instanceof AppError ? error.message : 'An unexpected error occurred during verification';
+            const { html } = renderTemplate(EMAIL_TEMPLATE.VERIFICATION_RESULT, {
+                clientUrl: env.CLIENT_URL,
+                success: false,
+                message,
+            });
+            return res.status(HTTP_STATUS.BAD_REQUEST).send(html);
+        }
     };
 }
