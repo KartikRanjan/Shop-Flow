@@ -14,13 +14,14 @@ import type {
     resendVerificationEmailRequestSchema,
     forgotPasswordRequestSchema,
     resetPasswordRequestSchema,
+    verifyEmailRequestSchema,
+    verifyResetTokenRequestSchema,
 } from '../validations';
 import type { IAuthService } from '../types';
 import type { TypedRequest } from '@types';
 import { AppError } from '@errors';
 import { env } from '@config/env';
-import { EMAIL_TEMPLATE } from '@infrastructure/email/email.constants';
-import { renderTemplate } from '@infrastructure/email/template.engine';
+import { renderVerificationResult } from '../templates';
 
 export default class AuthController {
     constructor(private readonly authService: IAuthService) {}
@@ -56,16 +57,8 @@ export default class AuthController {
     };
 
     /** Verify if a password reset token is still valid */
-    verifyResetToken = async (req: Request, res: Response) => {
+    verifyResetToken = async (req: TypedRequest<typeof verifyResetTokenRequestSchema>, res: Response) => {
         const { token } = req.query;
-
-        if (typeof token !== 'string') {
-            throw new AppError({
-                message: 'Invalid reset token',
-                statusCode: HTTP_STATUS.BAD_REQUEST,
-                errorCode: ERROR_CODE.VALIDATION_ERROR,
-            });
-        }
 
         await this.authService.verifyResetToken(token);
 
@@ -167,34 +160,15 @@ export default class AuthController {
     };
 
     /** Verify user email address */
-    verifyEmail = async (req: Request, res: Response) => {
+    verifyEmail = async (req: TypedRequest<typeof verifyEmailRequestSchema>, res: Response) => {
         const { token } = req.query;
-
         try {
-            if (typeof token !== 'string') {
-                const { html } = renderTemplate(EMAIL_TEMPLATE.VERIFICATION_RESULT, {
-                    clientUrl: env.CLIENT_URL,
-                    success: false,
-                    message: 'Invalid verification token',
-                });
-                return res.status(HTTP_STATUS.BAD_REQUEST).send(html);
-            }
-
             await this.authService.verifyEmail(token);
-            const { html } = renderTemplate(EMAIL_TEMPLATE.VERIFICATION_RESULT, {
-                clientUrl: env.CLIENT_URL,
-                success: true,
-            });
-            return res.status(HTTP_STATUS.OK).send(html);
+            return res.status(HTTP_STATUS.OK).send(renderVerificationResult(true));
         } catch (error) {
             const message =
                 error instanceof AppError ? error.message : 'An unexpected error occurred during verification';
-            const { html } = renderTemplate(EMAIL_TEMPLATE.VERIFICATION_RESULT, {
-                clientUrl: env.CLIENT_URL,
-                success: false,
-                message,
-            });
-            return res.status(HTTP_STATUS.BAD_REQUEST).send(html);
+            return res.status(HTTP_STATUS.BAD_REQUEST).send(renderVerificationResult(false, message));
         }
     };
 }

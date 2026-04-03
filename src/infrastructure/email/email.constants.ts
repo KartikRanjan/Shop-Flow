@@ -1,6 +1,5 @@
 export const EMAIL_TEMPLATE = {
     VERIFY_EMAIL: 'verify-email',
-    VERIFICATION_RESULT: 'verification-result',
     RESET_PASSWORD: 'reset-password',
 } as const;
 
@@ -22,12 +21,10 @@ export const EMAIL_FAILED_JOB_RETENTION = {
 
 export const EMAIL_TEMPLATE_FILE_NAMES = {
     [EMAIL_TEMPLATE.VERIFY_EMAIL]: 'verify-email.hbs',
-    [EMAIL_TEMPLATE.VERIFICATION_RESULT]: 'verification-result.hbs',
     [EMAIL_TEMPLATE.RESET_PASSWORD]: 'reset-password.hbs',
 } as const;
 
-export const EMAIL_TEMPLATE_SUBJECTS: Record<string, string | null> = {
+export const EMAIL_TEMPLATE_SUBJECTS: Record<string, string> = {
     [EMAIL_TEMPLATE.VERIFY_EMAIL]: 'Verify your email - ShopFlow',
-    [EMAIL_TEMPLATE.VERIFICATION_RESULT]: null,
     [EMAIL_TEMPLATE.RESET_PASSWORD]: 'Reset your password - ShopFlow',
 } as const;
