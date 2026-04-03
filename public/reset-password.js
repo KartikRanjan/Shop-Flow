@@ -7,9 +7,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     const submitBtn = document.getElementById('submit-btn');
     const tokenInput = document.getElementById('token-input');
 
-    // Extract token from URL
+    // Extract token from URL and immediately strip it from the address bar
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
+    window.history.replaceState({}, '', window.location.pathname);
 
     if (!token) {
         if (formContainer) formContainer.classList.add('hidden');
@@ -27,8 +28,10 @@ window.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         if (tokenInput) tokenInput.value = token;
-    } catch (error) {
-        console.error('Check error:', error);
+    } catch {
+        if (formContainer) formContainer.classList.add('hidden');
+        showMessage('Unable to verify reset link. Please check your connection and try again.', 'error');
+        return;
     }
 
     // --- Simple Text-based Toggle Password Visibility ---
