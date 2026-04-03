@@ -1,0 +1,86 @@
+<html lang='en'>
+    <head>
+        <meta charset='UTF-8' />
+        <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+        <title>{{title}}</title>
+        <style>
+            body {
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background-color: #f4f7f9;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                color: #333;
+            }
+            .container {
+                background-color: #ffffff;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+                text-align: center;
+                max-width: 400px;
+                width: 90%;
+                animation: fadeIn 0.5s ease-out;
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .icon-container {
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                margin: 0 auto 24px;{{#if isSuccess}}
+                background-color: #ecfdf5;
+            {{else}}
+                background-color: #fef2f2;
+            {{/if}}}
+            .icon {
+                font-size: 40px;{{#if isSuccess}}
+                color: #10b981;
+            {{else}}
+                color: #ef4444;
+            {{/if}}}
+            h1 {
+                font-size: 24px;
+                font-weight: 700;
+                margin-bottom: 12px;
+                color: #111827;
+            }
+            p {
+                font-size: 16px;
+                color: #6b7280;
+                line-height: 1.5;
+                margin-bottom: 32px;
+            }
+            .btn {
+                display: inline-block;
+                background-color: #000;
+                color: #fff;
+                padding: 12px 32px;
+                border-radius: 8px;
+                text-decoration: none;
+                font-weight: 600;
+                transition: background-color 0.2s;
+            }
+            .btn:hover {
+                background-color: #333;
+            }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='icon-container'>
+                <span class='icon'>{{#if isSuccess}}✓{{else}}✕{{/if}}</span>
+            </div>
+            <h1>{{header}}</h1>
+            <p>{{message}}</p>
+            <a href='{{buttonUrl}}' class='btn'>{{buttonText}}</a>
+        </div>
+    </body>
+</html>
